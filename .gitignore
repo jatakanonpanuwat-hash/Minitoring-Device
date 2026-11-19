@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+dist-download/
+backend/build/
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+.claude/
+
+# File store (in-memory mode)
+backend/data/

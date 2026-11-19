@@ -1,0 +1,11 @@
+@theme {
+  --font-sans: 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f4f6fa;
+  color: #0f172a;
+  margin: 0;
+}

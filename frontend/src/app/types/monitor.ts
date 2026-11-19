@@ -1,0 +1,145 @@
+// ประเภท / สถานะ / โซน มาจากรายการที่ผู้ดูแลกำหนด (GET /api/catalog) — key เป็น string
+export type DeviceStatus = string;
+export type DeviceType = string;
+
+export interface CatalogItem {
+  key: string;
+  label: string;
+  /** "lucide:<ชื่อ>" หรือ "/api/uploads/icon-....png" หรือ "" */
+  icon: string;
+  color?: string;
+  /** สถานะ: ไม่ ping อุปกรณ์ที่อยู่ในสถานะนี้ */
+  pause_monitor?: boolean;
+  /** สถานะหลักของระบบ ping — ลบไม่ได้ */
+  builtin?: boolean;
+}
+
+export interface Catalog {
+  types: CatalogItem[];
+  statuses: CatalogItem[];
+  zones: CatalogItem[];
+}
+
+export type CatalogKind = keyof Catalog;
+
+export interface Device {
+  id: string;
+  name: string;
+  device_type: DeviceType;
+  zone: string | null;
+  floor: string | null;
+  x_percent: number | null;
+  y_percent: number | null;
+  ip_address: string | null;
+  mac_address: string | null;
+  brand: string | null;
+  model: string | null;
+  serial_no: string | null;
+  status: DeviceStatus;
+  monitor_enabled: boolean;
+  last_seen: string | null;
+  last_checked: string | null;
+  last_latency_ms: number | null;
+  fail_count: number;
+  remark: string | null;
+  map_id: string | null;
+  direction: number | null;
+  fov_angle: number | null;
+  lan: string | null;
+  cabinet: string | null;
+  install_area: string | null;
+  install_detail: string | null;
+  requested_by: string | null;
+  created_at?: string;
+  updated_at?: string;
+  updated_by: string | null;
+}
+
+export interface MapItem {
+  map_id: string;
+  map_name: string;
+  image_url: string;
+}
+
+export type LogAction = 'added' | 'updated' | 'moved' | 'deleted' | 'down' | 'up' | 'imported' | 'ip_table';
+
+export interface LogEntry {
+  id: number;
+  timestamp: string;
+  employee_id: string | null;
+  employee_name: string | null;
+  action: LogAction;
+  device_id: string | null;
+  device_name: string | null;
+  zone: string | null;
+  floor: string | null;
+  details: string | null;
+  old_values: string | null;
+  new_values: string | null;
+}
+
+export interface AppSettings {
+  MONITOR_ENABLED: string;
+  MONITOR_INTERVAL_SEC: string;
+  MONITOR_TIMEOUT_MS: string;
+  MONITOR_FAIL_THRESHOLD: string;
+  MONITOR_WARN_MS: string;
+  IPTABLE_AUTO_ADD: string;
+  IPTABLE_AUTO_REMOVE: string;
+  XLSX_AUTO_SYNC: string;
+}
+
+// ---------- TABLE_IP / NVR ----------
+export interface IpRow {
+  id: string;
+  year: number;
+  row_no: number | null;
+  nvr_ip: string | null;
+  channel: number | null;
+  camera_ip: string | null;
+  camera_name: string | null;
+  control: string | null;
+  status: string | null;
+  remark: string | null;
+  updated_at?: string;
+}
+
+export interface IpUpdate {
+  id: number;
+  year: number;
+  timestamp: string;
+  row_id: string | null;
+  nvr_ip: string | null;
+  channel: number | null;
+  camera_ip: string | null;
+  camera_name: string | null;
+  update_type: string | null;
+  detail: string | null;
+  remark: string | null;
+  updated_by_id: string | null;
+  updated_by_name: string | null;
+}
+
+export interface IpYearsInfo {
+  years: { year: number; count: number }[];
+  current: number;
+  update_types: string[];
+  auto: { add: boolean; remove: 'soft' | 'hard' | 'off' };
+}
+
+export interface MonitorStatus {
+  enabled: boolean;
+  intervalSec: number;
+  running: boolean;
+  lastRunAt: string | null;
+  checked: number;
+}
+
+export function formatAgo(iso: string | null): string {
+  if (!iso) return '—';
+  const sec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (sec < 60) return `${Math.max(sec, 0)} วิ.ที่แล้ว`;
+  if (sec < 3600) return `${Math.floor(sec / 60)} นาทีที่แล้ว`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)} ชม.ที่แล้ว`;
+  return new Date(iso).toLocaleString('th-TH');
+}

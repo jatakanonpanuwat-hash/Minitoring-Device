@@ -1,0 +1,1763 @@
+/* ==========================================================================
+ * Monitoring Device theme — "White Blue Minimal" (ต่อยอดจาก CCTV-MECHA-PART)
+ * Light theme, green accent #2563eb. Body font: Noto Sans Thai (bundled),
+ * numbers: JetBrains Mono (bundled). No Google Fonts dependency.
+ * ========================================================================== */
+
+.cctv-app {
+  display: grid;
+  grid-template-rows: 56px 1fr 32px;
+  grid-template-columns: 64px 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "rail   main"
+    "bottom bottom";
+  height: 100vh;
+  width: 100vw;
+  background: #f4f6fa;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.cctv-app input,
+.cctv-app select,
+.cctv-app button {
+  font-family: inherit;
+}
+
+/* ============ TOP BAR ============ */
+.cctv-app .topbar {
+  grid-area: topbar;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  z-index: 100;
+}
+.cctv-app .topbar-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.cctv-app .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 16px;
+  border-right: 1px solid #e2e8f0;
+  min-width: 220px;
+}
+.cctv-app .brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.cctv-app .brand-logo svg {
+  width: 18px;
+  height: 18px;
+}
+.cctv-app .brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.cctv-app .brand-text b {
+  font-size: 13px;
+  font-weight: 700;
+}
+.cctv-app .brand-text span {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* KPI strip */
+.cctv-app .kpi-strip {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 8px;
+}
+.cctv-app .kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  min-width: 118px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: all 0.15s;
+  cursor: default;
+}
+.cctv-app .kpi-card.clickable {
+  cursor: pointer;
+}
+.cctv-app .kpi-card.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.cctv-app .kpi-card .kpi-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cctv-app .kpi-card.mecha1 .kpi-dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15); }
+.cctv-app .kpi-card.mecha2 .kpi-dot { background: #7c3aed; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15); }
+.cctv-app .kpi-card.total .kpi-dot { background: #0f172a; box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1); }
+.cctv-app .kpi-card.offline .kpi-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); animation: cctv-offline-pulse 2s infinite; }
+.cctv-app .kpi-card.maintenance .kpi-dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+.cctv-app .kpi-card .kpi-main { display: flex; flex-direction: column; line-height: 1.1; }
+.cctv-app .kpi-card .kpi-label { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; }
+.cctv-app .kpi-card .kpi-value { font-size: 15px; font-weight: 700; color: #0f172a; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+.cctv-app .kpi-card .kpi-sub { margin-left: auto; font-size: 10px; font-weight: 600; color: #64748b; background: #f8fafc; padding: 3px 7px; border-radius: 999px; border: 1px solid #f1f5f9; white-space: nowrap; }
+.cctv-app .kpi-card.mecha1 .kpi-sub { color: #16a34a; background: #f0fdf4; border-color: #dcfce7; }
+.cctv-app .kpi-card.mecha2 .kpi-sub { color: #2563eb; background: #eff6ff; border-color: #dbeafe; }
+.cctv-app .kpi-card.offline.has-zero { opacity: 0.6; }
+.cctv-app .kpi-card.maintenance.has-zero { opacity: 0.6; }
+@keyframes cctv-offline-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+  50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.25); }
+}
+@media (max-width: 1100px) {
+  .cctv-app .kpi-strip { display: none; }
+}
+
+/* Search + map meta + actions */
+.cctv-app .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.cctv-app .global-search {
+  position: relative;
+  width: 200px;
+}
+.cctv-app .global-search input {
+  width: 100%;
+  padding: 9px 14px 9px 38px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #0f172a;
+  transition: all 0.15s;
+}
+.cctv-app .global-search input:focus {
+  outline: none;
+  background: #fff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+.cctv-app .global-search .search-ico {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: #94a3b8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cctv-app .global-search .search-ico svg {
+  width: 16px;
+  height: 16px;
+}
+.cctv-app .map-name-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 5px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cctv-app .top-actions-v2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cctv-app .action-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-left: 1px solid #e2e8f0;
+}
+.cctv-app .action-group:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+.cctv-app .icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.cctv-app .icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cctv-app .icon-btn.active {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+.cctv-app .icon-btn.edit-primary.active {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.cctv-app .icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============ LEFT RAIL ============ */
+.cctv-app .rail {
+  grid-area: rail;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+  z-index: 90;
+}
+.cctv-app .rail-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: all 0.15s;
+  position: relative;
+}
+.cctv-app .rail-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cctv-app .rail-btn.active {
+  background: #eff6ff;
+  color: #2563eb;
+}
+.cctv-app .rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: #2563eb;
+  border-radius: 0 3px 3px 0;
+}
+.cctv-app .rail-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.cctv-app .rail-spacer {
+  flex: 1;
+}
+.cctv-app .rail-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 8px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* ============ MAIN AREA ============ */
+.cctv-app .main-area {
+  grid-area: main;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  background: #eef2f7;
+  min-width: 0;
+}
+
+/* Slide Panel */
+.cctv-app .slide-panel {
+  width: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.cctv-app .slide-panel.open {
+  width: 340px;
+}
+.cctv-app .slide-panel-inner {
+  width: 340px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cctv-app .panel-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.cctv-app .panel-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.cctv-app .panel-header h3::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  background: #2563eb;
+  border-radius: 2px;
+}
+.cctv-app .panel-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cctv-app .panel-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cctv-app .panel-close svg {
+  width: 14px;
+  height: 14px;
+}
+.cctv-app .panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+.cctv-app .panel-body::-webkit-scrollbar {
+  width: 6px;
+}
+.cctv-app .panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cctv-app .panel-body::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 3px;
+}
+
+/* Stats / filters / sections */
+.cctv-app .stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.cctv-app .stat {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 12px 10px;
+  border-radius: 10px;
+  text-align: center;
+  transition: all 0.15s;
+}
+.cctv-app .stat:hover {
+  background: #f1f5f9;
+}
+.cctv-app .stat b {
+  font-size: 20px;
+  display: block;
+  margin-bottom: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: #0f172a;
+}
+.cctv-app .stat span {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.cctv-app .filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.cctv-app .filters input,
+.cctv-app .filters select {
+  padding: 9px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  border-radius: 9px;
+  font-size: 13px;
+  width: 100%;
+  transition: all 0.15s;
+}
+.cctv-app .filters input:focus,
+.cctv-app .filters select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+.cctv-app .section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cctv-app .section-title:first-child {
+  margin-top: 0;
+}
+
+/* Camera rows */
+.cctv-app .cam-row {
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cctv-app .cam-row:hover {
+  background: #f8fafc;
+}
+.cctv-app .cam-row.selected {
+  background: #eff6ff;
+}
+.cctv-app .cam-row .name {
+  color: #0f172a;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cctv-app .cam-row .ip {
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.cctv-app .cam-row .status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.cctv-app .cam-row .status.online { background: #dcfce7; color: #166534; }
+.cctv-app .cam-row .status.offline { background: #fee2e2; color: #991b1b; }
+.cctv-app .cam-row .status.maintenance { background: #fef3c7; color: #92400e; }
+.cctv-app .cam-row .status.warning { background: #fef3c7; color: #92400e; }
+
+/* Map list */
+.cctv-app .map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cctv-app .map-item {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  border-radius: 9px;
+  font-size: 12px;
+  background: #ffffff;
+  color: #475569;
+  font-weight: 500;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cctv-app .map-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+.cctv-app .map-item.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1e40af;
+  font-weight: 600;
+}
+.cctv-app .map-item .grow {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cctv-app .map-item input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+.cctv-app .mini-btn {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  border-radius: 4px;
+}
+.cctv-app .mini-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+.cctv-app .mini-btn.danger:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+.cctv-app .mini-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Forms + buttons */
+.cctv-app .form-group {
+  margin-bottom: 14px;
+}
+.cctv-app .form-group label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.cctv-app .form-group input,
+.cctv-app .form-group select {
+  width: 100%;
+  padding: 9px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  border-radius: 9px;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.cctv-app .form-group input:focus,
+.cctv-app .form-group select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+.cctv-app .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.cctv-app .btn {
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.cctv-app .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+}
+.cctv-app .btn:active {
+  transform: translateY(0);
+}
+.cctv-app .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.cctv-app .btn svg {
+  width: 14px;
+  height: 14px;
+}
+.cctv-app .btn-green { background: #2563eb; color: #fff; }
+.cctv-app .btn-dark { background: #ffffff; color: #475569; border-color: #e2e8f0; }
+.cctv-app .btn-dark:hover { background: #f8fafc; }
+.cctv-app .btn-red { background: #ef4444; color: #fff; }
+.cctv-app .btn-block { width: 100%; }
+.cctv-app .btn-row {
+  display: flex;
+  gap: 8px;
+}
+.cctv-app .btn-row .btn {
+  flex: 1;
+}
+.cctv-app .notice {
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.cctv-app .notice.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+.cctv-app .notice.ok {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.cctv-app .hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ============ VIEWER ============ */
+.cctv-app .viewer {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #eef2f7;
+  touch-action: none;
+  user-select: none;
+  min-width: 0;
+}
+.cctv-app .viewer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.10) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+.cctv-app .viewer.place-mode {
+  cursor: crosshair;
+}
+.cctv-app .map-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  z-index: 1;
+}
+.cctv-app .map-canvas img {
+  display: block;
+  background: #fff;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12);
+}
+.cctv-app .viewer-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+}
+.cctv-app .zoom-bar {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+.cctv-app .zoom-bar button {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cctv-app .zoom-bar button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cctv-app .zoom-bar button svg {
+  width: 16px;
+  height: 16px;
+}
+.cctv-app .zoom-bar .zoom-label {
+  display: flex;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #64748b;
+  padding: 0 4px;
+  min-width: 44px;
+  justify-content: center;
+}
+.cctv-app .place-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.25);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+.cctv-app .place-banner input {
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  width: 140px;
+}
+.cctv-app .place-banner button {
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cctv-app .place-banner button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ DEVICE MARKERS ============ */
+/* ทั้งก้อนคงขนาดบนจอด้วย --inv-scale (Viewer ตั้งค่าบน .map-canvas) */
+.cctv-app .dev-marker {
+  --c: #16a34a;            /* สีหลักตามสถานะ */
+  --c-soft: color-mix(in srgb, var(--c) 24%, transparent);
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform: scale(var(--inv-scale, 1));
+  z-index: 5;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cctv-app .dev-marker.st-online      { }
+.cctv-app .dev-marker.st-warning     { z-index: 7; }
+.cctv-app .dev-marker.st-offline     { z-index: 8; }
+.cctv-app .dev-marker.st-maintenance { }
+.cctv-app .dev-marker.st-unknown     { }
+.cctv-app .dev-marker:hover { z-index: 50; }
+.cctv-app .dev-marker.selected { z-index: 45; }
+
+/* ป้ายวงกลม + ไอคอนประเภท — จุดศูนย์กลางคือพิกัดจริงของอุปกรณ์ */
+.cctv-app .dev-badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-radius: 50%;
+  background: var(--c);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px var(--c-soft), 0 4px 10px rgba(15, 23, 42, 0.28);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  z-index: 3;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.cctv-app .dev-badge svg { width: 14px; height: 14px; stroke-width: 2.25; }
+.cctv-app .dev-marker:hover .dev-badge { transform: scale(1.15); }
+.cctv-app .dev-marker.selected .dev-badge {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #0f172a, 0 6px 16px rgba(15, 23, 42, 0.35);
+}
+/* maintenance / unknown — ไม่ได้ถูก monitor อยู่: ไม่มีวงฟุ้ง + จางลงเล็กน้อย */
+.cctv-app .dev-marker.st-maintenance .dev-badge,
+.cctv-app .dev-marker.st-unknown .dev-badge {
+  box-shadow: 0 0 0 1.5px var(--c), 0 3px 8px rgba(15, 23, 42, 0.22);
+}
+.cctv-app .dev-marker.st-unknown .dev-badge { opacity: 0.85; }
+
+/* วงกระเพื่อม — เฉพาะเครื่องที่มีปัญหา */
+.cctv-app .dev-pulse {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-radius: 50%;
+  background: var(--c);
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+  animation: dev-pulse 1.6s ease-out infinite;
+}
+.cctv-app .dev-marker.st-warning .dev-pulse { animation-duration: 2.4s; }
+@keyframes dev-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ป้ายชื่อใต้หมุด */
+.cctv-app .dev-label {
+  position: absolute;
+  left: 0;
+  top: 17px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 160px;
+  padding: 2px 7px 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+}
+.cctv-app .dev-label::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  flex-shrink: 0;
+}
+.cctv-app .dev-label span { overflow: hidden; text-overflow: ellipsis; }
+.cctv-app .dev-marker.selected .dev-label { background: #0f172a; outline: 1.5px solid var(--c); }
+
+/* ซูมออกจนแน่น — ซ่อนป้ายชื่อ ยกเว้นเครื่องมีปัญหา / ที่เลือก / ที่ชี้อยู่ */
+/* ซูมออก (ดูภาพรวม): หมุดย่อเป็นจุดสี ไม่มีป้ายชื่อ/กรวยกล้อง — ไม่บังแผนผัง
+   ชี้เมาส์หรือเลือกอยู่ → กลับเป็นหมุดเต็ม */
+.cctv-app .viewer.labels-auto .dev-marker:not(:hover):not(.selected) .dev-label,
+.cctv-app .viewer.labels-auto .dev-marker:not(:hover):not(.selected) .cam-fov-container { display: none; }
+.cctv-app .viewer.labels-auto .dev-marker:not(:hover):not(.selected) .dev-badge {
+  transform: scale(0.42);
+  border-width: 3px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+}
+.cctv-app .viewer.labels-auto .dev-marker:not(:hover):not(.selected) .dev-badge > * { visibility: hidden; }
+.cctv-app .viewer.labels-auto .dev-marker:not(:hover):not(.selected) .dev-pulse { width: 14px; height: 14px; margin: -7px 0 0 -7px; }
+
+/* การ์ดรายละเอียดตอนชี้เมาส์ */
+.cctv-app .dev-tip {
+  position: absolute;
+  left: 0;
+  bottom: 22px;
+  transform: translate(-50%, 4px);
+  min-width: 170px;
+  max-width: 240px;
+  padding: 9px 11px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid var(--c);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+  color: #0f172a;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  z-index: 10;
+}
+.cctv-app .dev-marker:hover .dev-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+.cctv-app .viewer.interacting .dev-tip { display: none; }
+.cctv-app .dev-tip-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+.cctv-app .dev-tip-head b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.cctv-app .dev-tip-row { display: flex; justify-content: space-between; gap: 12px; color: #64748b; }
+.cctv-app .dev-tip-row span:last-child { color: #0f172a; font-weight: 600; }
+.cctv-app .dev-tip .pill { font-size: 9.5px; padding: 1px 7px; }
+
+/* กรวยมุมมองกล้อง */
+.cctv-app .cam-fov-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  transform: rotate(var(--dir, 0deg));
+  pointer-events: none;
+  z-index: 0;
+}
+.cctv-app .cam-fov-svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.cctv-app .cam-fov-wedge {
+  fill: var(--c-soft);
+  stroke: var(--c);
+  stroke-opacity: 0.45;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cctv-app .dev-pulse,
+  .cctv-app .kpi-card.offline .kpi-dot { animation: none; }
+}
+
+/* ============ BOTTOM BAR ============ */
+.cctv-app .bottom-bar {
+  grid-area: bottom;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  font-size: 11px;
+  color: #64748b;
+  z-index: 100;
+}
+.cctv-app .bottom-bar .conn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.cctv-app .bottom-bar .conn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+.cctv-app .bottom-bar .conn.bad .dot {
+  background: #ef4444;
+}
+.cctv-app .bottom-bar .spacer {
+  flex: 1;
+}
+.cctv-app .bottom-bar .mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============ MODAL ============ */
+.cctv-app .modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.cctv-app .modal-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow: auto;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.25);
+}
+.cctv-app .modal-box.wide {
+  max-width: 860px;
+}
+.cctv-app .modal-box h2 {
+  font-size: 16px;
+  color: #0f172a;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cctv-app .cctv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+.cctv-app .cctv-table th {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+.cctv-app .cctv-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+.cctv-app .cctv-table tr:last-child td {
+  border-bottom: none;
+}
+.cctv-app .cctv-table td.mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.cctv-app .pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.cctv-app .pill.online { background: #dcfce7; color: #166534; }
+.cctv-app .pill.offline { background: #fee2e2; color: #991b1b; }
+.cctv-app .pill.maintenance { background: #fef3c7; color: #92400e; }
+.cctv-app .pill.warning { background: #fef3c7; color: #92400e; }
+
+/* ===== Device monitor additions ===== */
+.cctv-app .kpi-card.active { outline: 2px solid #2563eb; outline-offset: 1px; }
+.cctv-app .place-banner select {
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.cctv-app .cam-row .type-ico { width: 14px; height: 14px; color: #64748b; flex-shrink: 0; }
+.cctv-app .cam-row .status.unknown,
+.cctv-app .pill.unknown { background: #e2e8f0; color: #475569; }
+.cctv-app .pill.maintenance { background: #ede9fe; color: #5b21b6; }
+.cctv-app .live-status {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #475569;
+}
+.cctv-app .live-status b { color: #0f172a; }
+.cctv-app .btn-sm { padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.cctv-app .device-history { max-height: 180px; overflow-y: auto; font-size: 12px; }
+.cctv-app .device-history-row { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.cctv-app .device-history-row .grow { flex: 1; color: #64748b; }
+.cctv-app .cam-row .status.maintenance { background: #ede9fe; color: #5b21b6; }
+
+/* ===== map zoom/pan stability ===== */
+/* วาดใหม่ที่ความละเอียดจริงหลังหยุดซูม (คม) — will-change เฉพาะตอนกำลังลาก/ซูม (ลื่น) */
+.cctv-app .map-canvas { will-change: auto; backface-visibility: hidden; }
+.cctv-app .viewer.interacting .map-canvas { will-change: transform; }
+/* หมุดต้องเปลี่ยนขนาดพร้อมแผนผังทันที — ไม่หน่วงตามหลัง */
+.cctv-app .viewer.interacting .dev-marker,
+.cctv-app .viewer.interacting .dev-marker * { transition: none !important; }
+.cctv-app .viewer.interacting .dev-pulse { animation-play-state: paused; }
+.cctv-app .viewer.move-mode .dev-marker { cursor: move; }
+.cctv-app .viewer { cursor: grab; overscroll-behavior: contain; }
+.cctv-app .viewer:active { cursor: grabbing; }
+.cctv-app .viewer.place-mode, .cctv-app .viewer.place-mode:active { cursor: crosshair; }
+.cctv-app .map-canvas img { image-rendering: auto; }
+
+/* ===== catalog (ประเภท / สถานะ / โซน กำหนดเอง) ===== */
+/* ป้ายสถานะใช้สีจากรายการ (--c) */
+.cctv-app .pill.status-pill {
+  background: color-mix(in srgb, var(--c, #94a3b8) 15%, #fff);
+  color: color-mix(in srgb, var(--c, #94a3b8) 75%, #000);
+  border: 1px solid color-mix(in srgb, var(--c, #94a3b8) 30%, #fff);
+  flex-shrink: 0;
+}
+.cctv-app .dev-marker.st-online .dev-badge,
+.cctv-app .dev-marker .dev-badge { background: var(--c); }
+.cctv-app .catalog-img { width: 1em; height: 1em; object-fit: contain; display: inline-block; }
+.cctv-app .dev-badge .catalog-img { width: 16px; height: 16px; border-radius: 3px; background: #fff; padding: 1px; }
+.cctv-app .inline-ico { vertical-align: -2px; margin-right: 4px; }
+.cctv-app .zone-tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: #0f172a; }
+.cctv-app .zone-tag svg, .cctv-app .zone-tag .catalog-img { color: var(--c); flex-shrink: 0; }
+.cctv-app .zone-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, #94a3b8); display: inline-block; flex-shrink: 0; }
+.cctv-app .zone-dot.big { width: 14px; height: 14px; }
+
+.cctv-app .catalog-modal { max-width: 860px; }
+.cctv-app .catalog-tabs { display: flex; gap: 6px; border-bottom: 1px solid #e2e8f0; margin-bottom: 10px; }
+.cctv-app .catalog-tabs button {
+  border: none; background: none; padding: 8px 14px; font-weight: 600; color: #64748b; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 6px;
+}
+.cctv-app .catalog-tabs button.active { color: #2563eb; border-bottom-color: #2563eb; }
+.cctv-app .catalog-tabs .count { font-size: 10px; background: #f1f5f9; color: #475569; border-radius: 999px; padding: 1px 7px; }
+.cctv-app .catalog-tabs .dirty { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
+.cctv-app .catalog-list { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+.cctv-app .catalog-row-wrap { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.cctv-app .catalog-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+.cctv-app .catalog-row input.grow { flex: 1; min-width: 120px; }
+.cctv-app .catalog-icon-btn {
+  width: 36px; height: 36px; border-radius: 9px; border: 1px solid #e2e8f0; cursor: pointer; flex-shrink: 0;
+  display: grid; place-items: center; color: #fff; background: var(--c, #2563eb);
+}
+.cctv-app .catalog-icon-btn .catalog-img { width: 22px; height: 22px; background: #fff; border-radius: 4px; padding: 1px; }
+.cctv-app .catalog-icon-btn:hover, .cctv-app .catalog-icon-btn.active { outline: 2px solid #2563eb; outline-offset: 1px; }
+.cctv-app .catalog-color { width: 36px; height: 32px; padding: 2px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; flex-shrink: 0; }
+.cctv-app .catalog-pause { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; white-space: nowrap; cursor: pointer; }
+.cctv-app .catalog-pause input { width: auto; }
+.cctv-app .catalog-pause.disabled { opacity: 0.55; cursor: default; }
+.cctv-app .catalog-usage { font-size: 11px; color: #64748b; white-space: nowrap; min-width: 56px; text-align: right; }
+.cctv-app .mini-btn:disabled { opacity: 0.3; cursor: default; background: none; }
+.cctv-app .mini-btn.locked { color: #cbd5e1; cursor: default; }
+.cctv-app .icon-picker { border-top: 1px dashed #e2e8f0; padding: 10px; background: #f8fafc; border-radius: 0 0 10px 10px; }
+.cctv-app .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; }
+.cctv-app .icon-grid button {
+  height: 36px; border: 1px solid transparent; border-radius: 8px; background: #fff; color: #334155; cursor: pointer;
+  display: grid; place-items: center;
+}
+.cctv-app .icon-grid button:hover { border-color: #93c5fd; color: #2563eb; }
+.cctv-app .icon-grid button.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+.cctv-app .icon-picker-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.cctv-app .catalog-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.cctv-app .catalog-foot .spacer { flex: 1; }
+.cctv-app .catalog-msg { font-size: 12px; }
+.cctv-app .catalog-msg.ok { color: #16a34a; }
+.cctv-app .catalog-msg.err { color: #dc2626; }
+
+/* ===== TABLE_IP / NVR ===== */
+.cctv-app .ip-page { display: flex; flex-direction: column; overflow: hidden; }
+.cctv-app .ip-page > .ip-modal { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cctv-app .ip-modal > h2 { font-size: 18px; color: #0f172a; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 10px; flex-wrap: wrap; }
+.cctv-app .ip-title { display: inline-flex; align-items: center; gap: 10px; }
+.cctv-app .ip-year-badge { font-size: 11px; font-family: 'JetBrains Mono', monospace; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 10px; }
+.cctv-app .ip-head-actions { display: inline-flex; align-items: center; gap: 8px; }
+.cctv-app .ip-head-actions select { width: auto; font-size: 12px; padding: 5px 8px; }
+.cctv-app .ip-newyear {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 10px;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; font-size: 12px;
+}
+.cctv-app .ip-newyear input { width: 90px; }
+.cctv-app .ip-newyear select { width: auto; }
+.cctv-app .ip-newyear .hint { flex-basis: 100%; margin: 0; }
+.cctv-app .ip-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
+.cctv-app .ip-stats > div { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; }
+.cctv-app .ip-stats b { font-size: 20px; font-family: 'JetBrains Mono', monospace; color: #0f172a; }
+.cctv-app .ip-stats span { font-size: 11px; color: #64748b; }
+.cctv-app .ip-stats .ok b { color: #16a34a; }
+.cctv-app .ip-stats .bad { cursor: pointer; }
+.cctv-app .ip-stats .bad b { color: #dc2626; }
+.cctv-app .ip-nvr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; flex-shrink: 0; }
+.cctv-app .ip-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 9px; border-radius: 999px;
+  border: 1px solid #e2e8f0; background: #fff; cursor: pointer; color: #334155;
+}
+.cctv-app .ip-chip:hover { border-color: #93c5fd; }
+.cctv-app .ip-chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.cctv-app .ip-chip .range { color: #94a3b8; }
+.cctv-app .ip-chip.active .range { color: #dbeafe; }
+.cctv-app .ip-chip .miss { background: #fee2e2; color: #b91c1c; border-radius: 999px; padding: 0 6px; font-weight: 700; }
+.cctv-app .ip-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
+.cctv-app .ip-toolbar input.grow { flex: 1; min-width: 180px; }
+.cctv-app .ip-toolbar select { width: auto; font-size: 12px; }
+.cctv-app .ip-views { display: inline-flex; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.cctv-app .ip-views button { border: none; background: #fff; padding: 6px 12px; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; }
+.cctv-app .ip-views button + button { border-left: 1px solid #e2e8f0; }
+.cctv-app .ip-views button.active { background: #2563eb; color: #fff; }
+.cctv-app .ip-count { font-size: 11px; color: #64748b; white-space: nowrap; }
+.cctv-app .ip-body { flex: 1; min-height: 200px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.cctv-app .ip-table { width: 100%; font-size: 12px; }
+.cctv-app .ip-table thead th { position: sticky; top: 0; background: #f8fafc; z-index: 1; }
+.cctv-app .ip-table tr.deleted td { color: #94a3b8; text-decoration: line-through; text-decoration-color: rgba(148, 163, 184, 0.6); }
+.cctv-app .ip-table tr.deleted td:nth-last-child(-n+2) { text-decoration: none; }
+.cctv-app .ip-cell { display: inline-flex; align-items: center; gap: 2px; }
+.cctv-app .ip-onmap { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px; white-space: nowrap; border: none; }
+.cctv-app .ip-onmap.ok { background: #dcfce7; color: #166534; cursor: pointer; }
+.cctv-app .ip-onmap.ok:hover { background: #bbf7d0; }
+.cctv-app .ip-onmap.warn { background: #fef3c7; color: #92400e; }
+.cctv-app .ip-onmap.bad { background: #fee2e2; color: #991b1b; }
+.cctv-app .ip-status { font-size: 11px; color: #475569; }
+.cctv-app .ip-last { font-size: 11px; color: #475569; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cctv-app .ip-last b { color: #1d4ed8; }
+.cctv-app .ip-last span { color: #94a3b8; }
+.cctv-app .ip-actions { white-space: nowrap; }
+.cctv-app .ip-actions .mini-btn { display: inline-flex; }
+.cctv-app .ip-nvr-view { padding: 10px; display: flex; flex-direction: column; gap: 12px; }
+.cctv-app .ip-nvr-card { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.cctv-app .ip-nvr-card header { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px; font-weight: 600; }
+.cctv-app .ip-nvr-card header .legend { margin-left: auto; font-weight: 400; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
+.cctv-app .ip-nvr-card .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.cctv-app .ip-ch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 5px; padding: 10px; }
+.cctv-app .ip-ch {
+  display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 7px; border: 1px solid; cursor: pointer;
+  font-size: 11px; text-align: left; min-width: 0;
+}
+.cctv-app .ip-ch b { font-family: 'JetBrains Mono', monospace; min-width: 20px; }
+.cctv-app .ip-ch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cctv-app .ip-ch.ok, .cctv-app .legend i.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.cctv-app .ip-ch.bad, .cctv-app .legend i.bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.cctv-app .ip-ch.del, .cctv-app .legend i.del { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; }
+.cctv-app .legend i { border: 1px solid; }
+.cctv-app .ip-ch:hover { outline: 2px solid #2563eb; outline-offset: -1px; }
+.cctv-app .ip-toast {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); background: #0f172a; color: #fff;
+  font-size: 12px; padding: 8px 14px; border-radius: 999px; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3); z-index: 5;
+}
+.cctv-app .ip-modal { position: relative; }
+.cctv-app .ip-editor-backdrop { z-index: 1100; }
+.cctv-app .modal-box.ip-editor { max-width: 620px; max-height: 88vh; overflow-y: auto; }
+.cctv-app .warn-text { color: #b45309; }
+.cctv-app .link-btn { border: none; background: none; color: #2563eb; cursor: pointer; padding: 0; font-size: inherit; text-decoration: underline; }
+.cctv-app .btn.btn-sm { padding: 5px 10px; }
+@media (max-width: 900px) {
+  .cctv-app .ip-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============ DASHBOARD ============ */
+.cctv-app .dash-page { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 24px; }
+.cctv-app .dash-inner { max-width: 1600px; margin: 0 auto; }
+.cctv-app .dash-head { font-size: 18px; color: #0f172a; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cctv-app .dash-back { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 640px) { .cctv-app .dash-page { padding: 16px; } }
+.cctv-app .dash-sub { font-size: 11px; font-weight: 400; color: #64748b; }
+.cctv-app .dash-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.cctv-app .dash-tile { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; background: #f8fafc; }
+.cctv-app .dash-tile-label { font-size: 11px; color: #64748b; }
+.cctv-app .dash-tile-value { font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 2px; }
+.cctv-app .mono { font-family: 'JetBrains Mono', monospace; }
+.cctv-app .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.cctv-app .dash-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; background: #fff; min-width: 0; }
+.cctv-app .dash-card + .dash-grid, .cctv-app .dash-tiles + .dash-card { margin-bottom: 12px; }
+.cctv-app .dash-card-title { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 10px; }
+.cctv-app .dash-empty { color: #94a3b8; font-size: 12px; padding: 12px 0; text-align: center; }
+.cctv-app .dash-stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #f1f5f9; gap: 2px; }
+.cctv-app .dash-stack > span { display: block; min-width: 3px; }
+.cctv-app .dash-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12px; color: #334155; }
+.cctv-app .dash-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.cctv-app .dash-legend small { color: #94a3b8; }
+.cctv-app .dash-bars { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+.cctv-app .dash-bar-row { display: grid; grid-template-columns: minmax(80px, 140px) 1fr auto; align-items: center; gap: 10px; font-size: 12px; }
+.cctv-app .dash-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #334155; }
+.cctv-app .dash-bar-label .inline-ico { margin-right: 6px; vertical-align: -2px; }
+.cctv-app .dash-bar-track { position: relative; height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; }
+.cctv-app .dash-bar-fill { position: absolute; inset: 0 auto 0 0; background: #2563eb; border-radius: 5px; }
+.cctv-app .dash-bar-fill.bad { background: #dc2626; }
+.cctv-app .dash-bar-num { font-size: 11px; color: #0f172a; white-space: nowrap; }
+.cctv-app .dash-bar-num em { font-style: normal; color: #dc2626; font-family: 'Noto Sans Thai', sans-serif; }
+.cctv-app .dash-list { max-height: 400px; overflow-y: auto; }
+
+/* รายการอุปกรณ์ (เต็มจอ) */
+.cctv-app .list-page-card { padding: 0; overflow: auto; }
+.cctv-app .list-page-table thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+.cctv-app .list-page-table tbody tr:hover td { background: #f8fafc; }
+
+/* Settings (เต็มจอ) — เมนูซ้าย + เนื้อหาขวา */
+.cctv-app .settings-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+.cctv-app .settings-nav { display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
+.cctv-app .settings-nav-item { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; border: none; border-radius: 10px; background: transparent; color: #475569; cursor: pointer; transition: background .15s, color .15s; }
+.cctv-app .settings-nav-item:hover { background: #f1f5f9; color: #0f172a; }
+.cctv-app .settings-nav-item.active { background: #eff6ff; color: #1d4ed8; box-shadow: inset 3px 0 0 #2563eb; }
+.cctv-app .settings-nav-item svg { flex-shrink: 0; margin-top: 2px; }
+.cctv-app .settings-nav-item span { display: flex; flex-direction: column; min-width: 0; }
+.cctv-app .settings-nav-item b { font-size: 13px; font-weight: 600; }
+.cctv-app .settings-nav-item small { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+.cctv-app .settings-nav-item.active small { color: #60a5fa; }
+.cctv-app .settings-content { padding: 0; min-height: 320px; }
+.cctv-app .settings-content-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+.cctv-app .settings-content-head svg { color: #2563eb; flex-shrink: 0; }
+.cctv-app .settings-content-head h3 { margin: 0; font-size: 16px; color: #0f172a; }
+.cctv-app .settings-content-head p { margin: 0; font-size: 12px; color: #64748b; }
+.cctv-app .settings-content-body { padding: 20px; max-width: 760px; }
+.cctv-app .settings-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0 12px; }
+.cctv-app .settings-actions { max-width: 360px; margin-top: 4px; }
+.cctv-app .settings-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 120px)); gap: 10px; margin-bottom: 16px; }
+.cctv-app .settings-counts > div { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; }
+.cctv-app .settings-counts b { font-size: 20px; font-family: 'JetBrains Mono', monospace; color: #0f172a; }
+.cctv-app .settings-counts span { font-size: 11px; color: #64748b; }
+.cctv-app .settings-check { display: flex !important; align-items: center; gap: 8px; text-transform: none !important; }
+.cctv-app .settings-check input { width: auto !important; }
+.cctv-app .settings-notice { margin-bottom: 14px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; }
+@media (max-width: 860px) {
+  .cctv-app .settings-layout { grid-template-columns: 1fr; }
+  .cctv-app .settings-nav { position: static; flex-direction: row; overflow-x: auto; }
+  .cctv-app .settings-nav-item { width: auto; flex-shrink: 0; align-items: center; }
+  .cctv-app .settings-nav-item small { display: none; }
+  .cctv-app .settings-nav-item.active { box-shadow: inset 0 -3px 0 #2563eb; }
+}
+
+/* ============ DASHBOARD CHARTS ============ */
+.cctv-app .dash-chart-card { margin-bottom: 12px; }
+.cctv-app .dash-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.cctv-app .dash-card-head .dash-card-title { margin-bottom: 2px; }
+.cctv-app .dash-card-sub { font-size: 11px; color: #64748b; }
+.cctv-app .dash-seg { display: inline-flex; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.cctv-app .dash-seg button { border: none; background: #fff; color: #475569; font-size: 12px; padding: 4px 12px; cursor: pointer; }
+.cctv-app .dash-seg button + button { border-left: 1px solid #e2e8f0; }
+.cctv-app .dash-seg button.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.cctv-app .dash-bar-row.clickable { cursor: pointer; }
+.cctv-app .dash-bar-row.clickable:hover .dash-bar-label { color: #2563eb; text-decoration: underline; }
+
+.cctv-app .col-chart { position: relative; padding-left: 28px; }
+.cctv-app .col-plot { position: relative; height: 180px; margin-top: 18px; }
+.cctv-app .col-grid { position: absolute; inset: 0; pointer-events: none; }
+.cctv-app .col-gridline { position: absolute; left: 0; right: 0; border-top: 1px solid #f1f5f9; }
+.cctv-app .col-gridline:first-child { border-top-color: #cbd5e1; }
+.cctv-app .col-gridline span { position: absolute; left: -28px; width: 22px; text-align: right; top: -8px; font-size: 10px; color: #94a3b8; }
+.cctv-app .col-bars { position: absolute; inset: 0; display: flex; gap: 2px; }
+.cctv-app .col-slot { position: relative; flex: 1; min-width: 0; display: flex; justify-content: center; }
+.cctv-app .col-slot.hover { background: rgba(37, 99, 235, 0.06); border-radius: 4px; }
+.cctv-app .col-bar-wrap { position: relative; width: 100%; max-width: 32px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.cctv-app .col-bar { width: 100%; border-radius: 4px 4px 0 0; transition: opacity .12s; }
+.cctv-app .col-peak { font-size: 10px; color: #334155; margin-bottom: 2px; }
+.cctv-app .col-axis { display: flex; gap: 2px; margin-top: 6px; }
+.cctv-app .col-axis span { flex: 1; min-width: 0; text-align: center; font-size: 10px; color: #94a3b8; white-space: nowrap; }
+.cctv-app .col-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #e2e8f0; font-size: 11px; line-height: 1.5; padding: 6px 10px; border-radius: 8px; white-space: nowrap; z-index: 5; pointer-events: none; box-shadow: 0 6px 18px rgba(15, 23, 42, .25); }
+.cctv-app .col-tip.left { left: auto; right: 0; transform: none; }
+.cctv-app .col-tip-head { color: #fff; font-weight: 600; }
+.cctv-app .col-empty { position: absolute; inset: 18px 0 20px 28px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #94a3b8; pointer-events: none; }
+
+/* ============ แผง แผนผัง & อุปกรณ์ (รวม) ============ */
+.cctv-app .panel-toggle { cursor: pointer; user-select: none; }
+.cctv-app .panel-toggle > span:first-child { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.cctv-app .panel-toggle:hover { color: #475569; }
+.cctv-app .panel-current { font-style: normal; text-transform: none; letter-spacing: 0; color: #2563eb; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.cctv-app .section-title small { font-weight: 500; color: #cbd5e1; }
+.cctv-app .map-count { font-size: 10px; min-width: 22px; text-align: center; padding: 1px 6px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-weight: 600; }
+.cctv-app .map-item.active .map-count { background: #dbeafe; color: #1d4ed8; }
+.cctv-app .map-add { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 6px; padding: 7px; border: 1px dashed #cbd5e1; border-radius: 9px; background: transparent; color: #64748b; font-size: 12px; cursor: pointer; }
+.cctv-app .map-add:hover { border-color: #2563eb; color: #2563eb; background: #f8fafc; }
+.cctv-app .map-upload { margin-top: 8px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.cctv-app .map-upload .form-group { margin-bottom: 8px; }
+.cctv-app .panel-only-map { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; margin: -2px 0 8px; cursor: pointer; }
+.cctv-app .panel-only-map input { width: auto; margin: 0; }
+
+/* ============ แถบเครื่องมือบนแผนผัง (เพิ่ม / ย้าย อุปกรณ์) ============ */
+.cctv-app .map-tools {
+  position: absolute; top: 12px; left: 12px; z-index: 20;
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+.cctv-app .map-tool {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border: 1px solid transparent; border-radius: 9px; background: transparent;
+  color: #334155; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.cctv-app .map-tool svg { width: 16px; height: 16px; }
+.cctv-app .map-tool:hover { background: #f1f5f9; color: #0f172a; }
+.cctv-app .map-tool.primary { background: #2563eb; color: #fff; }
+.cctv-app .map-tool.primary:hover { background: #1d4ed8; }
+.cctv-app .map-tool.done { background: #16a34a; color: #fff; }
+.cctv-app .map-tool.done:hover { background: #15803d; }
+.cctv-app .map-tool-state { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 12px; font-weight: 600; color: #1d4ed8; white-space: nowrap; }
+.cctv-app .map-tool-state svg { width: 15px; height: 15px; }
+/* จอแคบ: ซ่อนข้อความ เหลือไอคอน และย้ายแถบแจ้งลงล่างไม่ให้ชนกัน */
+@media (max-width: 720px) {
+  .cctv-app .map-tool { padding: 0 10px; }
+  .cctv-app .map-tools .map-tool:not(.primary):not(.done) { font-size: 0; gap: 0; }
+  .cctv-app .map-tool-state { display: none; }
+  .cctv-app .place-banner { top: auto; bottom: 64px; max-width: calc(100% - 24px); flex-wrap: wrap; }
+}
+
+/* ============ หมุดตำแหน่งที่จะวางอุปกรณ์ใหม่ ============ */
+/* จุดยึด (0×0) อยู่ตรงตำแหน่งที่คลิกพอดี; คงขนาดบนจอด้วย --inv-scale เหมือน dev-marker */
+.cctv-app .place-pin {
+  position: absolute; width: 0; height: 0; z-index: 8; pointer-events: none;
+  transform: scale(var(--inv-scale, 1));
+}
+/* จุดกลาง = ตำแหน่งจริง */
+.cctv-app .place-pin::after {
+  content: ''; position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%;
+  background: #2563eb; border: 2px solid #fff; box-shadow: 0 0 0 1px #2563eb, 0 2px 6px rgba(15, 23, 42, .35);
+}
+.cctv-app .place-pin-pulse {
+  position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px dashed #2563eb; background: rgba(37, 99, 235, .10);
+  animation: place-pin-spin 6s linear infinite;
+}
+/* หัวหมุด ลอยเหนือจุด มีหางชี้ลงมา */
+.cctv-app .place-pin-badge {
+  position: absolute; left: -15px; top: -50px; width: 30px; height: 30px; border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); background: #2563eb; border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .35); display: grid; place-items: center;
+  animation: place-pin-drop .35s ease-out;
+}
+.cctv-app .place-pin-badge > * { transform: rotate(45deg); color: #fff; }
+.cctv-app .place-pin-label {
+  position: absolute; left: 0; top: -76px; transform: translateX(-50%);
+  background: #0f172a; color: #fff; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+  white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .3);
+}
+.cctv-app .place-pos { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #93c5fd; }
+@keyframes place-pin-spin { to { transform: rotate(360deg); } }
+@keyframes place-pin-drop { from { transform: translateY(-14px) rotate(-45deg); opacity: 0; } to { transform: rotate(-45deg); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .cctv-app .place-pin-pulse, .cctv-app .place-pin-badge { animation: none; }
+}
+
+/* ============ ตัวตั้งทิศกล้อง (DirectionDial) ============ */
+.cctv-app .dir-dial { display: flex; gap: 16px; align-items: flex-start; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; margin-top: 4px; }
+.cctv-app .dir-dial-svg { width: 140px; height: 140px; flex-shrink: 0; cursor: grab; touch-action: none; outline: none; border-radius: 50%; }
+.cctv-app .dir-dial-svg:active { cursor: grabbing; }
+.cctv-app .dir-dial-svg:focus-visible { box-shadow: 0 0 0 3px rgba(37, 99, 235, .35); }
+.cctv-app .dir-ring { fill: #fff; stroke: #cbd5e1; stroke-width: 1.5; }
+.cctv-app .dir-tick { stroke: #94a3b8; stroke-width: 2; stroke-linecap: round; }
+.cctv-app .dir-wedge { fill: rgba(37, 99, 235, .18); stroke: #2563eb; stroke-width: 1.2; stroke-opacity: .6; }
+.cctv-app .dir-arm { stroke: #2563eb; stroke-width: 2; stroke-linecap: round; }
+.cctv-app .dir-center { fill: #2563eb; stroke: #fff; stroke-width: 2; }
+.cctv-app .dir-knob { fill: #fff; stroke: #2563eb; stroke-width: 3; }
+.cctv-app .dir-label { font-size: 9px; fill: #94a3b8; text-anchor: middle; font-weight: 600; pointer-events: none; }
+.cctv-app .dir-dial-svg.unset .dir-wedge,
+.cctv-app .dir-dial-svg.unset .dir-arm,
+.cctv-app .dir-dial-svg.unset .dir-knob { opacity: .3; }
+.cctv-app .dir-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.cctv-app .dir-value { display: flex; gap: 14px; font-size: 12px; color: #64748b; }
+.cctv-app .dir-value b { color: #0f172a; font-size: 15px; }
+.cctv-app .dir-presets { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.cctv-app .dir-presets.fov { grid-template-columns: repeat(5, 1fr); }
+.cctv-app .dir-presets button { height: 26px; padding: 0; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #334155; font-size: 12px; cursor: pointer; }
+.cctv-app .dir-presets button:hover { border-color: #2563eb; color: #2563eb; }
+.cctv-app .dir-presets button.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.cctv-app .dir-fov { display: flex !important; flex-direction: column; gap: 2px; font-size: 11px; color: #64748b; text-transform: none !important; margin: 0 !important; }
+.cctv-app .dir-fov input[type='range'] { width: 100%; padding: 0; border: none; accent-color: #2563eb; }
+.cctv-app .dir-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cctv-app .dir-foot .hint { margin: 0; font-size: 10.5px; }
+.cctv-app .dir-clear { border: none; background: none; color: #dc2626; font-size: 11px; cursor: pointer; padding: 0; white-space: nowrap; }
+.cctv-app .dir-clear:hover { text-decoration: underline; }
+@media (max-width: 480px) {
+  .cctv-app .dir-dial { flex-direction: column; align-items: center; }
+  .cctv-app .dir-side { width: 100%; }
+}
+
+/* ============ หมุนทิศกล้องบนแผนผัง (โหมดย้าย / หมุน) ============ */
+/* อยู่ใน .dev-marker (จุดยึด 0×0 + --inv-scale) จึงคงขนาดบนจอ; รัศมี 60px = ขอบพัด FOV */
+.cctv-app .cam-rotate {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4;
+  transform: rotate(var(--dir, 0deg));
+}
+.cctv-app .cam-rotate-arm {
+  position: absolute; left: -1px; top: -60px; width: 2px; height: 46px;
+  background: repeating-linear-gradient(to bottom, #2563eb 0 4px, transparent 4px 7px);
+  pointer-events: none;
+}
+.cctv-app .cam-rotate-handle {
+  position: absolute; left: -9px; top: -69px; width: 18px; height: 18px; border-radius: 50%;
+  background: #2563eb; border: 3px solid #fff; box-shadow: 0 0 0 1px #2563eb, 0 2px 8px rgba(15, 23, 42, .35);
+  cursor: grab; touch-action: none; pointer-events: auto;
+}
+/* พื้นที่กดใหญ่กว่าจุด — ใช้นิ้วบนแท็บเล็ตได้ง่าย */
+.cctv-app .cam-rotate-handle::before { content: ''; position: absolute; inset: -10px; border-radius: 50%; }
+.cctv-app .cam-rotate-handle:hover { transform: scale(1.15); }
+.cctv-app .dev-marker.rotating .cam-rotate-handle { cursor: grabbing; transform: scale(1.15); }
+.cctv-app .cam-rotate.unset .cam-rotate-arm { opacity: .5; }
+.cctv-app .cam-rotate.unset .cam-rotate-handle { background: #fff; border-color: #2563eb; }
+/* ระหว่างหมุน: แสดงองศาเหนือหมุด */
+.cctv-app .cam-rotate-deg {
+  position: absolute; left: 0; top: 18px; transform: translateX(-50%); z-index: 6;
+  background: #0f172a; color: #fff; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px;
+  white-space: nowrap; pointer-events: none;
+}
+.cctv-app .dev-marker.rotating { z-index: 30; }
+.cctv-app .dev-marker.can-rotate:hover { z-index: 25; }
+/* โหมดย้าย/หมุน: แสดงพัด FOV ของกล้องเสมอ (ปกติซ่อนตอนแผนผังแน่น) */
+.cctv-app .viewer.move-mode .dev-marker.can-rotate .cam-fov-container { display: block !important; }
+
+/* ============ แผงวางอุปกรณ์ใหม่ (PlacePanel) — ธีม White Blue Minimal ============ */
+.cctv-app .place-panel {
+  position: absolute; top: 12px; right: 12px; bottom: 12px; z-index: 40; width: 360px; max-width: calc(100% - 24px);
+  display: flex; flex-direction: column; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .12); overflow: hidden; cursor: default;
+  animation: pp-in .18s ease-out;
+}
+@keyframes pp-in { from { transform: translateX(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* แผงอยู่ขวา → ย้ายแถบซูม/คำแนะนำไม่ให้โดนบัง */
+.cctv-app .viewer.place-mode .zoom-bar { right: 384px; }
+.cctv-app .place-banner.place-banner-left { left: calc(50% - 180px); }
+
+/* หัวแผง — แบบเดียวกับ .panel-header */
+.cctv-app .pp-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid #f1f5f9; }
+.cctv-app .pp-head-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: #eff6ff; color: #2563eb; flex-shrink: 0; }
+.cctv-app .pp-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cctv-app .pp-head-text b { font-size: 14px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px; }
+.cctv-app .pp-head-text em { font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .5px; padding: 1px 7px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.cctv-app .pp-head-text span { font-size: 11px; color: #94a3b8; }
+
+.cctv-app .pp-body { flex: 1; overflow-y: auto; padding: 14px 16px 6px; display: flex; flex-direction: column; gap: 4px; }
+.cctv-app .pp-body .form-group { margin-bottom: 10px; }
+.cctv-app .pp-body .form-row { gap: 8px; }
+
+/* สถานะตำแหน่ง */
+.cctv-app .pp-pos { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px; margin-bottom: 6px; }
+.cctv-app .pp-pos svg { color: #94a3b8; }
+.cctv-app .pp-pos b { color: #0f172a; }
+.cctv-app .pp-pos-state { margin-left: auto; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; }
+.cctv-app .pp-pos.ok { border-style: solid; border-color: #bfdbfe; background: #eff6ff; color: #1e40af; }
+.cctv-app .pp-pos.ok svg { color: #2563eb; }
+.cctv-app .pp-pos.ok .pp-pos-state { background: #2563eb; color: #fff; }
+
+/* หัวข้อหมวด — แบบเดียวกับ .section-title */
+.cctv-app .pp-section { display: flex; flex-direction: column; }
+.cctv-app .pp-section-title {
+  display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: .8px; margin: 12px 0 8px;
+}
+.cctv-app .pp-section-title svg { color: #94a3b8; }
+
+/* ตัวตั้งทิศในแผงแคบ: วงกลมบน ตัวควบคุมล่าง */
+.cctv-app .place-panel .dir-dial { flex-direction: column; align-items: center; background: #fff; }
+.cctv-app .place-panel .dir-side { width: 100%; }
+
+/* ท้ายแผง */
+.cctv-app .pp-foot { border-top: 1px solid #f1f5f9; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.cctv-app .pp-foot .notice { margin: 0; }
+.cctv-app .pp-foot-hint { font-size: 11px; color: #94a3b8; text-align: center; }
+.cctv-app .pp-foot-btns { display: flex; gap: 8px; }
+.cctv-app .pp-foot-btns .btn { flex: 1; padding: 9px 14px; font-size: 13px; }
+.cctv-app .pp-foot-btns .btn-green { flex: 1.6; }
+.cctv-app .pp-foot-btns .btn-green:hover:not(:disabled) { background: #1d4ed8; }
+.cctv-app .pp-foot-btns .btn-green:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+/* หมุดวาง: พัดทิศตัวอย่างใต้หมุด */
+.cctv-app .place-pin-fov { z-index: 0; }
+.cctv-app .place-pin-fov .cam-fov-wedge { fill: rgba(37, 99, 235, .16); stroke: #2563eb; }
+
+@media (max-width: 720px) {
+  .cctv-app .place-panel { top: auto; left: 12px; width: auto; max-height: 62%; }
+  .cctv-app .viewer.place-mode .zoom-bar { right: 16px; bottom: auto; top: 60px; }
+  .cctv-app .place-banner.place-banner-left { left: 50%; top: 60px; bottom: auto; }
+}
+
+/* ============ วางอุปกรณ์ที่ยังไม่มีตำแหน่ง ============ */
+/* แถบด้านบนแผนผังระหว่างวาง */
+.cctv-app .place-banner.place-existing { white-space: nowrap; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; }
+.cctv-app .place-existing .pe-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.cctv-app .place-existing .pe-hint { color: #cbd5e1; font-weight: 500; }
+.cctv-app .place-existing button.pe-cancel { background: #475569; }
+.cctv-app .place-existing .pe-error { flex-basis: 100%; text-align: center; color: #fca5a5; font-weight: 500; white-space: normal; }
+
+/* หน้าต่างรายละเอียดอุปกรณ์: แถบสถานะการวาง */
+.cctv-app .place-notice {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 12px; border-radius: 10px;
+  border: 1px dashed #93c5fd; background: #eff6ff; color: #1e40af; font-size: 12px;
+}
+.cctv-app .place-notice > span { flex: 1; min-width: 0; }
+.cctv-app .place-notice svg { color: #2563eb; flex-shrink: 0; }
+.cctv-app .place-notice.placed { border-style: solid; border-color: #e2e8f0; background: #f8fafc; color: #64748b; }
+.cctv-app .place-notice.placed svg { color: #94a3b8; }
+.cctv-app .place-notice.placed b { color: #0f172a; }
+
+/* หน้า List: ปุ่มกรองที่ยังไม่วาง + คอลัมน์แผนผัง */
+.cctv-app .unplaced-toggle { background: #fff; color: #1d4ed8; border-color: #bfdbfe; }
+.cctv-app .unplaced-toggle:hover { background: #eff6ff; }
+.cctv-app .unplaced-toggle.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.cctv-app .placed-mark { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+
+/* แผงข้าง: ปุ่ม "วาง" แทนป้ายสถานะ */
+.cctv-app .row-place-btn {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 2px 8px; border-radius: 999px;
+  border: 1px dashed #93c5fd; background: #eff6ff; color: #1d4ed8; font-size: 10.5px; font-weight: 600; cursor: pointer;
+}
+.cctv-app .row-place-btn:hover { background: #2563eb; border-style: solid; border-color: #2563eb; color: #fff; }
+
+/* ============ แถบแจ้งผล + เลิกทำ (Undo) ============ */
+.cctv-app .undo-toast {
+  position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 150;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; max-width: calc(100vw - 32px);
+  background: #0f172a; color: #e2e8f0; font-size: 13px; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .3); animation: undo-in .18s ease-out;
+}
+.cctv-app .undo-toast > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cctv-app .undo-toast.error { background: #7f1d1d; color: #fee2e2; }
+.cctv-app .undo-btn { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: 8px; padding: 5px 12px; background: #2563eb; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.cctv-app .undo-btn:hover { background: #1d4ed8; }
+.cctv-app .undo-close { display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 7px; background: transparent; color: #94a3b8; cursor: pointer; }
+.cctv-app .undo-close:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+@keyframes undo-in { from { transform: translate(-50%, 10px); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
+
+/* แถบเครื่องมือแผนผัง: ปุ่มยกเลิก + จำนวนที่แก้ในรอบ (ธีมฟ้า-ขาว) */
+.cctv-app .map-tool.cancel { background: #fff; color: #475569; border-color: #e2e8f0; }
+.cctv-app .map-tool.cancel:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.cctv-app .map-tool.done { background: #2563eb; color: #fff; }
+.cctv-app .map-tool.done:hover { background: #1d4ed8; }
+.cctv-app .map-tool-count { font-size: 11px; font-weight: 600; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+@media (max-width: 720px) {
+  .cctv-app .map-tools .map-tool.cancel { font-size: 0; gap: 0; }
+}
+
+/* ============ LOGIN / ผู้ใช้ ============ */
+/* ปุ่มเข้าสู่ระบบบน TopBar */
+.cctv-app .login-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 9px;
+  border: 1px solid #2563eb; background: #2563eb; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.cctv-app .login-btn:hover { background: #1d4ed8; }
+
+/* เมนูผู้ใช้ */
+.cctv-app .user-menu { position: relative; }
+.cctv-app .user-chip {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 4px; border-radius: 10px;
+  border: 1px solid #e2e8f0; background: #fff; color: #475569; cursor: pointer;
+}
+.cctv-app .user-chip:hover { background: #f8fafc; border-color: #cbd5e1; }
+.cctv-app .user-avatar {
+  width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0;
+  background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 700;
+}
+.cctv-app .user-avatar.sm { width: 32px; height: 32px; border-radius: 50%; }
+.cctv-app .user-chip-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; max-width: 140px; }
+.cctv-app .user-chip-text b { font-size: 12px; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+.cctv-app .user-chip-text small { font-size: 10px; color: #94a3b8; }
+.cctv-app .user-dropdown {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 120; width: 250px; padding: 6px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, .14);
+}
+.cctv-app .user-dropdown-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px; margin-bottom: 4px; border-bottom: 1px solid #f1f5f9; color: #94a3b8; }
+.cctv-app .user-dropdown-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cctv-app .user-dropdown-head b { font-size: 13px; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cctv-app .user-dropdown-head small { font-size: 11px; color: #94a3b8; }
+.cctv-app .user-dropdown > button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px;
+  background: transparent; color: #334155; font-size: 13px; text-align: left; cursor: pointer;
+}
+.cctv-app .user-dropdown > button:hover { background: #f1f5f9; }
+.cctv-app .user-dropdown > button.danger { color: #dc2626; }
+.cctv-app .user-dropdown > button.danger:hover { background: #fef2f2; }
+.cctv-app .role-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; }
+.cctv-app .role-badge.admin { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+
+/* หน้าต่างเข้าสู่ระบบ / เปลี่ยนรหัส */
+.cctv-app .modal-box.auth-box { max-width: 420px; padding: 22px 24px; }
+.cctv-app .auth-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.cctv-app .auth-head > div { flex: 1; min-width: 0; }
+.cctv-app .auth-head h2 { margin: 0 0 2px; font-size: 16px; display: block; }
+.cctv-app .auth-head p { margin: 0; font-size: 12px; color: #64748b; }
+.cctv-app .auth-ico { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: #eff6ff; color: #2563eb; }
+.cctv-app .auth-box .notice { margin-bottom: 12px; }
+.cctv-app .auth-submit { margin-top: 6px; padding: 10px 14px; font-size: 13px; }
+.cctv-app .auth-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
+.cctv-app .auth-foot { text-align: center; margin: 12px 0 0; }
+
+/* หน้าต่างอุปกรณ์แบบดูอย่างเดียว */
+.cctv-app fieldset.dm-fields { border: none; margin: 0; padding: 0; min-width: 0; }
+.cctv-app fieldset.dm-fields:disabled input,
+.cctv-app fieldset.dm-fields:disabled select { background: #f8fafc; color: #334155; cursor: default; }
+.cctv-app .readonly-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px;
+  border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px;
+}
+
+/* Settings: หน้าสำหรับ Admin */
+.cctv-app .settings-gate { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 24px; text-align: center; color: #94a3b8; }
+.cctv-app .settings-gate h3 { margin: 4px 0 0; font-size: 16px; color: #0f172a; }
+.cctv-app .settings-gate p { margin: 0 0 8px; font-size: 13px; color: #64748b; }
+
+/* Settings → ผู้ใช้งาน */
+.cctv-app .users-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.cctv-app .user-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px;
+  border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+}
+.cctv-app .user-row.disabled { background: #f8fafc; opacity: .7; }
+.cctv-app .user-row-main { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
+.cctv-app .user-row-main b { font-size: 13px; color: #0f172a; }
+.cctv-app .user-row-main b em { font-style: normal; font-weight: 500; color: #2563eb; font-size: 11px; }
+.cctv-app .user-row-main small { font-size: 11px; color: #94a3b8; }
+.cctv-app .user-row select { width: auto; padding: 5px 8px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.cctv-app .user-active { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; cursor: pointer; }
+.cctv-app .user-active input { width: auto; margin: 0; }
+.cctv-app .user-row .mini-btn:disabled { opacity: .35; cursor: not-allowed; }
+.cctv-app .user-reset { flex-basis: 100%; display: flex; gap: 6px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+.cctv-app .user-reset input { flex: 1; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; }
+.cctv-app .user-add { padding: 14px; border: 1px solid #bfdbfe; border-radius: 12px; background: #f8fafc; }
+
+@media (max-width: 720px) {
+  .cctv-app .user-chip-text { display: none; }
+}
