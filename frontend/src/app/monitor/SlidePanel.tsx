@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, MapPin, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, ImagePlus, MapPin, Pencil, Plus, Trash2, Upload, X, MapPinOff } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import type { CatalogItem, Device, MapItem } from '../types/monitor';
 import { CatalogIcon, StatusPill, findType, useCatalog } from './catalog';
@@ -22,8 +22,9 @@ interface SlidePanelProps {
   maps: MapItem[];
   activeMapId: string;
   onSelectMap: (id: string) => void;
-  onUploadMap: (file: File, name: string) => void;
-  onRenameMap: (id: string, name: string) => void;
+  onUploadMap: (file: File, name: string, floor: string) => void;
+  onRenameMap: (id: string, name: string, floor: string) => void;
+  onReplaceMapImage: (id: string, file: File) => void;
   onDeleteMap: (id: string) => void;
   /** ไปวางอุปกรณ์ที่ยังไม่มีตำแหน่งบนแผนผัง */
   onPlace: (d: Device) => void;
@@ -56,12 +57,16 @@ export function SlidePanel(props: SlidePanelProps) {
   const catalog = useCatalog();
   const { canEdit, isAdmin } = useAuth();
   const [mapName, setMapName] = useState('');
+  const [mapFloor, setMapFloor] = useState('');
   const [renaming, setRenaming] = useState('');
   const [renameValue, setRenameValue] = useState('');
+  const [renameFloor, setRenameFloor] = useState('');
   const [showUpload, setShowUpload] = useState(false);
   const [mapsOpen, setMapsOpenState] = useState(() => loadBool(MAPS_OPEN_KEY, true));
   const [onlyMap, setOnlyMapState] = useState(() => loadBool(ONLY_MAP_KEY, true));
   const fileRef = useRef<HTMLInputElement>(null);
+  const replaceRef = useRef<HTMLInputElement>(null);
+  const [replacing, setReplacing] = useState('');
 
   const setMapsOpen = (v: boolean) => {
     setMapsOpenState(v);
@@ -95,79 +100,159 @@ export function SlidePanel(props: SlidePanelProps) {
           </button>
         </div>
         <div className="panel-body">
-          {/* ---------- แผนผัง ---------- */}
+          {/* ---------- ส่วนล็อคค้างด้านบน: แผนผัง + ตัวกรอง ---------- */}
+          <div className="panel-sticky">
           <div className="section-title panel-toggle" onClick={() => setMapsOpen(!mapsOpen)}>
             <span>
               {mapsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               แผนผัง
               {!mapsOpen && activeMap && <em className="panel-current"> · {activeMap.map_name}</em>}
             </span>
-            <span>{props.maps.length}</span>
+            <span className="maps-title-right">
+              <span>{props.maps.length}</span>
+              {isAdmin && (
+                <button
+                  className="mini-btn"
+                  title="เพิ่มแผนผัง"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMapsOpen(true);
+                    setShowUpload(true);
+                  }}
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+            </span>
           </div>
 
           {mapsOpen && (
             <>
-              <div className="map-list">
-                {props.maps.map((m) => (
-                  <div
-                    key={m.map_id}
-                    className={cn('map-item', props.activeMapId === m.map_id && 'active')}
-                    onClick={() => props.onSelectMap(m.map_id)}
+              {props.maps.length === 0 ? (
+                <p className="hint">ยังไม่มีแผนผัง — กด + เพื่ออัปโหลด</p>
+              ) : renaming ? (
+                <span
+                  className="map-rename map-edit-row"
+                  onBlur={(e) => {
+                    // โฟกัสหลุดออกจากกล่องแก้ชื่อ/ชั้นทั้งหมด = ยกเลิก (สลับช่องกันเองไม่ยกเลิก)
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRenaming('');
+                  }}
+                >
+                  <input
+                    value={renameValue}
+                    autoFocus
+                    placeholder="ชื่อแผนผัง"
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && renameValue.trim()) {
+                        props.onRenameMap(renaming, renameValue.trim(), renameFloor.trim());
+                        setRenaming('');
+                      } else if (e.key === 'Escape') {
+                        setRenaming('');
+                      }
+                    }}
+                  />
+                  <input
+                    className="map-rename-floor"
+                    value={renameFloor}
+                    placeholder="ชั้น"
+                    title="ชั้นของแผนผัง (เช่น 1FL)"
+                    onChange={(e) => setRenameFloor(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && renameValue.trim()) {
+                        props.onRenameMap(renaming, renameValue.trim(), renameFloor.trim());
+                        setRenaming('');
+                      } else if (e.key === 'Escape') {
+                        setRenaming('');
+                      }
+                    }}
+                  />
+                  <button
+                    className="mini-btn"
+                    title="บันทึก (Enter)"
+                    onClick={() => {
+                      if (renameValue.trim()) {
+                        props.onRenameMap(renaming, renameValue.trim(), renameFloor.trim());
+                        setRenaming('');
+                      }
+                    }}
                   >
-                    {renaming === m.map_id ? (
-                      <input
-                        value={renameValue}
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && renameValue.trim()) {
-                            props.onRenameMap(m.map_id, renameValue.trim());
-                            setRenaming('');
-                          } else if (e.key === 'Escape') {
-                            setRenaming('');
-                          }
+                    <Check size={14} />
+                  </button>
+                  <button className="mini-btn" title="ยกเลิก (Esc)" onClick={() => setRenaming('')}>
+                    <X size={14} />
+                  </button>
+                </span>
+              ) : (
+                <div className="map-select-row">
+                  <select
+                    value={props.maps.some((m) => m.map_id === props.activeMapId) ? props.activeMapId : ''}
+                    onChange={(e) => e.target.value && props.onSelectMap(e.target.value)}
+                    title="เลือกแผนผัง"
+                  >
+                    <option value="" disabled>— เลือกแผนผัง —</option>
+                    {props.maps.map((m) => (
+                      <option key={m.map_id} value={m.map_id}>
+                        {m.map_name}{m.floor ? ` (${m.floor})` : ''} · {countByMap.get(m.map_id) || 0}
+                      </option>
+                    ))}
+                  </select>
+                  {isAdmin && (
+                    <>
+                      <button
+                        className="mini-btn"
+                        title="แก้ไขชื่อ / ชั้น"
+                        onClick={() => {
+                          const m = props.maps.find((x) => x.map_id === props.activeMapId);
+                          if (!m) return;
+                          setRenaming(m.map_id);
+                          setRenameValue(m.map_name);
+                          setRenameFloor(m.floor || '');
                         }}
-                        onBlur={() => setRenaming('')}
-                      />
-                    ) : (
-                      <span className="grow">{m.map_name}</span>
-                    )}
-                    <span className="map-count mono" title="อุปกรณ์บนแผนผังนี้ (ตามตัวกรอง)">
-                      {countByMap.get(m.map_id) || 0}
-                    </span>
-                    {isAdmin && (<>
-                    <button
-                      className="mini-btn"
-                      title="เปลี่ยนชื่อ"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenaming(m.map_id);
-                        setRenameValue(m.map_name);
-                      }}
-                    >
-                      <Pencil />
-                    </button>
-                    <button
-                      className="mini-btn danger"
-                      title="ลบแผนผัง"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        props.onDeleteMap(m.map_id);
-                      }}
-                    >
-                      <Trash2 />
-                    </button>
-                    </>)}
-                  </div>
-                ))}
-                {props.maps.length === 0 && <p className="hint">ยังไม่มีแผนผัง — อัปโหลดด้านล่าง</p>}
-              </div>
+                      >
+                        <Pencil />
+                      </button>
+                      <button
+                        className="mini-btn"
+                        title="เปลี่ยนรูปแผนผัง (อุปกรณ์และตำแหน่งคงเดิม)"
+                        onClick={() => {
+                          setReplacing(props.activeMapId);
+                          replaceRef.current?.click();
+                        }}
+                      >
+                        <ImagePlus />
+                      </button>
+                      <button
+                        className="mini-btn danger"
+                        title="ลบแผนผัง"
+                        onClick={() => props.onDeleteMap(props.activeMapId)}
+                      >
+                        <Trash2 />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              <input
+                ref={replaceRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.gif,.webp"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f && replacing) props.onReplaceMapImage(replacing, f);
+                  setReplacing('');
+                  e.target.value = '';
+                }}
+              />
 
               {!isAdmin ? null : showUpload || props.maps.length === 0 ? (
                 <div className="map-upload">
                   <div className="form-group">
                     <input placeholder="ชื่อแผนผัง" value={mapName} onChange={(e) => setMapName(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <input placeholder="ชั้น (เช่น 1FL) — เว้นว่างได้" value={mapFloor} onChange={(e) => setMapFloor(e.target.value)} />
                   </div>
                   <input
                     ref={fileRef}
@@ -177,8 +262,9 @@ export function SlidePanel(props: SlidePanelProps) {
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       if (f) {
-                        props.onUploadMap(f, mapName.trim() || f.name);
+                        props.onUploadMap(f, mapName.trim() || f.name, mapFloor.trim());
                         setMapName('');
+                        setMapFloor('');
                         setShowUpload(false);
                       }
                       e.target.value = '';
@@ -195,21 +281,25 @@ export function SlidePanel(props: SlidePanelProps) {
                     )}
                   </div>
                 </div>
-              ) : (
-                <button className="map-add" onClick={() => setShowUpload(true)}>
-                  <Plus size={14} /> เพิ่มแผนผัง
-                </button>
-              )}
+              ) : null}
             </>
           )}
 
           {/* ---------- อุปกรณ์ ---------- */}
           <div className="section-title">
-            <span>อุปกรณ์</span>
             <span>
-              {shown.length}
-              {shown.length !== props.totalAll && <small> / {props.totalAll}</small>}
+              อุปกรณ์
+              <span className="sec-count">
+                {shown.length}
+                {shown.length !== props.totalAll && <small> / {props.totalAll}</small>}
+              </span>
             </span>
+            {activeMap && (
+              <label className="panel-only-map" title="แสดงเฉพาะอุปกรณ์บนแผนผังนี้">
+                <input type="checkbox" checked={onlyMap} onChange={(e) => setOnlyMap(e.target.checked)} />
+                เฉพาะแผนผังนี้
+              </label>
+            )}
           </div>
           <div className="filters">
             <select value={props.statusFilter} onChange={(e) => props.onStatusFilter(e.target.value)}>
@@ -238,13 +328,8 @@ export function SlidePanel(props: SlidePanelProps) {
               ))}
             </select>
           </div>
-          {activeMap && (
-            <label className="panel-only-map">
-              <input type="checkbox" checked={onlyMap} onChange={(e) => setOnlyMap(e.target.checked)} />
-              เฉพาะแผนผัง “{activeMap.map_name}”
-            </label>
-          )}
-          <div>
+          </div>
+          <div className="cam-list">
             {shown.map((d) => (
               <div
                 key={d.id}
@@ -260,7 +345,11 @@ export function SlidePanel(props: SlidePanelProps) {
                     <> · 🗺 {mapNameOf(d.map_id)}</>
                   )}
                 </span>
-                {canEdit && (d.x_percent == null || d.y_percent == null) ? (
+                {d.hide_on_map && d.x_percent == null ? (
+                  <span className="row-hidden-tag" title="ตั้งค่าไม่แสดงบนแผนผัง">
+                    <MapPinOff size={12} /> ไม่อยู่บนแผนผัง
+                  </span>
+                ) : canEdit && (d.x_percent == null || d.y_percent == null) ? (
                   // ยังไม่มีตำแหน่ง — กดเพื่อไปคลิกวางบนแผนผัง
                   <button
                     className="row-place-btn"

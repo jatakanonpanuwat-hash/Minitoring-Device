@@ -89,6 +89,9 @@ IP ของ mock ตั้งใจให้ได้สถานะต่า�
 | PUT | `/api/devices/:id` | แก้ไข/ย้ายอุปกรณ์ (admin) + log |
 | DELETE | `/api/devices/:id` | ลบอุปกรณ์ (admin) + log |
 | POST | `/api/devices/:id/ping` | ping ตัวเดียวทันที |
+| GET | `/api/devices/snapshots/years` | ปีที่มีสแนปช็อตรายการอุปกรณ์ + ปีปัจจุบัน |
+| GET | `/api/devices/snapshots?year=` | สแนปช็อตรายการอุปกรณ์ของปีนั้น (อ่านอย่างเดียว) |
+| POST | `/api/devices/snapshots` | บันทึกสแนปช็อตจากรายการปัจจุบัน (admin, `{ year }`, มีแล้ว = เขียนทับ) + log |
 | GET | `/api/monitor/status` | ค่าตั้ง monitor + เวลารอบล่าสุด |
 | POST | `/api/monitor/run` | สั่ง ping ทุกตัวตอนนี้ (admin) |
 | GET | `/api/catalog` | รายการประเภท / สถานะ / โซน |
@@ -103,7 +106,8 @@ IP ของ mock ตั้งใจให้ได้สถานะต่า�
 | POST | `/api/import/xlsx` | อัปโหลดไฟล์ .xlsx ตรงจากหน้าเว็บ (admin, multipart `file`, `only=cameras,iptable`, `dry_run=1` = ดูสรุปก่อน) |
 | GET | `/api/maps` | รายการแผนผัง |
 | POST | `/api/maps` | อัปโหลดรูปแผนผัง (admin, multipart field `image`) |
-| PUT | `/api/maps/:id` | เปลี่ยนชื่อแผนผัง (admin) |
+| POST | `/api/maps/:id/image` | เปลี่ยนรูปแผนผังเดิม (admin, multipart field `image`, อุปกรณ์/ตำแหน่งคงเดิม) |
+| PUT | `/api/maps/:id` | แก้ไขแผนผัง ชื่อ / ชั้น (admin) |
 | DELETE | `/api/maps/:id` | ลบแผนผัง (admin) |
 | GET | `/api/logs` | ประวัติ (`?limit=`, `?device_id=`) |
 | GET | `/api/settings` | ค่า Monitor / ซิงก์ TABLE_IP / ซิงก์ Excel |

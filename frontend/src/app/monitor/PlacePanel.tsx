@@ -2,6 +2,8 @@ import { Camera, Check, MapPin, Network, X } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { findType, useCatalog } from './catalog';
 import { DirectionDial, isCameraLike } from './DirectionDial';
+import { LanCombobox } from './LanCombobox';
+import type { Device } from '../types/monitor';
 
 /** ข้อมูลในฟอร์มวางอุปกรณ์ใหม่ (string ทั้งหมด — '' = ไม่ระบุ) */
 export interface PlaceForm {
@@ -30,16 +32,20 @@ export const EMPTY_PLACE_FORM: PlaceForm = {
 interface PlacePanelProps {
   form: PlaceForm;
   onForm: (f: PlaceForm) => void;
+  /** ชั้นของแผนผังที่เปิดอยู่ — ใส่ให้อุปกรณ์ใหม่อัตโนมัติ */
+  mapFloor: string | null;
   pending: { x: number; y: number } | null;
   saving: boolean;
   error: string;
   onSave: () => void;
   onCancel: () => void;
+  /** อุปกรณ์ทั้งหมด — ใช้รวบรวมวงแลนที่มีอยู่สำหรับ dropdown */
+  allDevices: Device[];
 }
 
 /** แผงวางอุปกรณ์ใหม่ (ด้านขวาของแผนผัง) */
 export function PlacePanel(props: PlacePanelProps) {
-  const { form, onForm, pending } = props;
+  const { form, onForm, pending, mapFloor } = props;
   const catalog = useCatalog();
   const set = (k: keyof PlaceForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     onForm({ ...form, [k]: e.target.value });
@@ -88,28 +94,15 @@ export function PlacePanel(props: PlacePanelProps) {
             <label>ชื่อ *</label>
             <input autoFocus value={form.name} onChange={set('name')} placeholder="เช่น CAM-ลานจอด-03" />
           </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>ประเภท</label>
-              <select value={form.device_type} onChange={set('device_type')}>
-                {catalog.types.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>สถานะเริ่มต้น</label>
-              <select value={form.status} onChange={set('status')}>
-                <option value="">อัตโนมัติ (ตาม ping)</option>
-                {catalog.statuses.map((st) => (
-                  <option key={st.key} value={st.key}>
-                    {st.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="form-group">
+            <label>ประเภท</label>
+            <select value={form.device_type} onChange={set('device_type')}>
+              {catalog.types.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -125,8 +118,8 @@ export function PlacePanel(props: PlacePanelProps) {
               </select>
             </div>
             <div className="form-group">
-              <label>ชั้น</label>
-              <input value={form.floor} onChange={set('floor')} placeholder="1FL" />
+              <label>ชั้น (อัตโนมัติตามแผนผัง)</label>
+              <input value={mapFloor || '—'} disabled title="ชั้นใส่ให้อัตโนมัติตามแผนผัง แก้เองไม่ได้" />
             </div>
           </div>
         </div>
@@ -143,26 +136,17 @@ export function PlacePanel(props: PlacePanelProps) {
             </div>
             <div className="form-group">
               <label>วงแลน (LAN)</label>
-              <input value={form.lan} onChange={set('lan')} />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>ตู้คอนโทรล</label>
-              <input value={form.cabinet} onChange={set('cabinet')} />
-            </div>
-            <div className="form-group">
-              <label>พื้นที่ติดตั้ง</label>
-              <input value={form.install_area} onChange={set('install_area')} />
+              <LanCombobox
+                value={form.lan}
+                devices={props.allDevices}
+                placeholder="พิมพ์ หรือเลือก"
+                onChange={(lan) => onForm({ ...form, lan })}
+              />
             </div>
           </div>
           <div className="form-group">
-            <label>รายละเอียดตำแหน่ง</label>
-            <input value={form.install_detail} onChange={set('install_detail')} />
-          </div>
-          <div className="form-group">
-            <label>ร้องขอโดย</label>
-            <input value={form.requested_by} onChange={set('requested_by')} />
+            <label>ตู้คอนโทรล</label>
+            <input value={form.cabinet} onChange={set('cabinet')} />
           </div>
         </div>
 

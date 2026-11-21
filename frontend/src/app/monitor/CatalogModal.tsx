@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Lock, Plus, Trash2, Upload, X } from 'lucide-react';
+import { confirmDialog } from '../components/ui/confirm';
 import { cn } from '../components/ui/utils';
 import type { Catalog, CatalogItem, CatalogKind, Device } from '../types/monitor';
 import { saveCatalog, uploadIcon } from '../utils/monitorClient';
@@ -68,8 +69,8 @@ export function CatalogModal({ catalog, devices, secret, onSaved, onClose }: Cat
     setPicker(null);
   };
 
-  const switchTab = (k: CatalogKind) => {
-    if (dirty[kind] && !window.confirm('มีการแก้ไขที่ยังไม่บันทึก — ทิ้งการแก้ไขแท็บนี้?')) return;
+  const switchTab = async (k: CatalogKind) => {
+    if (dirty[kind] && !(await confirmDialog({ title: 'ทิ้งการแก้ไข?', message: 'มีการแก้ไขที่ยังไม่บันทึก — ทิ้งการแก้ไขแท็บนี้?', confirmLabel: 'ทิ้ง', danger: true }))) return;
     setDrafts({ ...drafts, [kind]: structuredClone(catalog[kind]) });
     setDirty({ ...dirty, [kind]: false });
     setKind(k);
@@ -83,6 +84,7 @@ export function CatalogModal({ catalog, devices, secret, onSaved, onClose }: Cat
       setMsg({ ok: false, text: 'ทุกรายการต้องมีชื่อ' });
       return;
     }
+    if (!(await confirmDialog({ title: 'บันทึกรายการ', message: `บันทึกรายการ${tab.title}?`, confirmLabel: 'บันทึก' }))) return;
     setBusy(true);
     try {
       const saved = await saveCatalog(kind, items.map((i) => ({ ...i, label: i.label.trim() })), secret);
@@ -113,8 +115,8 @@ export function CatalogModal({ catalog, devices, secret, onSaved, onClose }: Cat
     }
   };
 
-  const close = () => {
-    if (Object.values(dirty).some(Boolean) && !window.confirm('มีการแก้ไขที่ยังไม่บันทึก — ปิดเลยหรือไม่?')) return;
+  const close = async () => {
+    if (Object.values(dirty).some(Boolean) && !(await confirmDialog({ title: 'ปิดเลยหรือไม่?', message: 'มีการแก้ไขที่ยังไม่บันทึก — ปิดเลยหรือไม่?', confirmLabel: 'ปิดเลย', danger: true }))) return;
     onClose();
   };
 

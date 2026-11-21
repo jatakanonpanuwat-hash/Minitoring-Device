@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { ChevronDown, KeyRound, LogIn, LogOut, ShieldCheck, UserRound, X } from 'lucide-react';
 import { changeMyPassword, login, setupFirstAdmin, type AuthUser } from '../utils/monitorClient';
+import { confirmDialog } from '../components/ui/confirm';
 
 // ---------- context ----------
 export interface AuthInfo {
@@ -148,6 +149,7 @@ export function ChangePasswordModal({ onDone, onClose }: { onDone: (token: strin
       setError('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
       return;
     }
+    if (!(await confirmDialog({ title: 'เปลี่ยนรหัสผ่าน', message: 'เปลี่ยนรหัสผ่านของบัญชีนี้?\n(เครื่องอื่นที่ login ไว้จะต้องเข้าสู่ระบบใหม่)', confirmLabel: 'เปลี่ยน' }))) return;
     setBusy(true);
     setError('');
     try {

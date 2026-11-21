@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { FileSpreadsheet, ListChecks, Lock, Map as MapIcon, Network, Radar, Users } from 'lucide-react';
+import { BellRing, FileSpreadsheet, ListChecks, Lock, Map as MapIcon, Network, Radar, Users } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { ExcelImport } from './ExcelImport';
 import { useCatalog } from './catalog';
 import { useAuth } from './auth';
 import { UsersSection } from './UsersSection';
+import { TelegramSection } from './TelegramSection';
+import { MonitorRunLog } from './MonitorRunLog';
 
 export interface MonitorForm {
   enabled: boolean;
@@ -25,7 +27,8 @@ interface SettingsPageProps {
   monitorForm: MonitorForm;
   onMonitorForm: (v: MonitorForm) => void;
   onSaveMonitor: () => void;
-  onRunMonitor: () => void;
+  /** ping ทั้งหมดครบรอบ — โหลดสถานะอุปกรณ์ใหม่ */
+  onMonitorRunDone: () => void;
   monitorResult: string;
   ipAuto: { add: boolean; remove: string };
   onIpAuto: (v: { add: boolean; remove: string }) => void;
@@ -33,7 +36,7 @@ interface SettingsPageProps {
   onImported: () => void;
 }
 
-type SectionKey = 'users' | 'monitor' | 'iptable' | 'catalog' | 'import';
+type SectionKey = 'users' | 'monitor' | 'telegram' | 'iptable' | 'catalog' | 'import';
 
 interface Section {
   key: SectionKey;
@@ -45,6 +48,7 @@ interface Section {
 const SECTIONS: Section[] = [
   { key: 'users', icon: Users, title: 'ผู้ใช้งาน', desc: 'บัญชี login และสิทธิ์ Admin / Editor' },
   { key: 'monitor', icon: Radar, title: 'Monitor', desc: 'ping อัตโนมัติ · รอบเวลา · เกณฑ์สถานะ' },
+  { key: 'telegram', icon: BellRing, title: 'แจ้งเตือน Telegram', desc: 'ส่งข้อความเมื่ออุปกรณ์ Offline / กลับมา Online' },
   { key: 'iptable', icon: Network, title: 'ซิงก์ TABLE_IP / NVR', desc: 'อัปเดตตาราง IP เมื่อเพิ่ม/ลบกล้อง' },
   { key: 'catalog', icon: ListChecks, title: 'ประเภท / สถานะ / โซน', desc: 'ไอคอน สี และชื่อของรายการ' },
   { key: 'import', icon: FileSpreadsheet, title: 'นำเข้าจาก Excel', desc: 'นำเข้าอุปกรณ์และแผนผังจากไฟล์' },
@@ -135,6 +139,8 @@ export function SettingsPage(props: SettingsPageProps) {
             <div className="settings-content-body">
               {current.key === 'users' && <UsersSection />}
 
+              {current.key === 'telegram' && <TelegramSection />}
+
               {current.key === 'monitor' && (
                 <>
                   <div className="form-group">
@@ -169,15 +175,15 @@ export function SettingsPage(props: SettingsPageProps) {
                     <button className="btn btn-green" onClick={props.onSaveMonitor}>
                       บันทึก
                     </button>
-                    <button className="btn btn-dark" onClick={props.onRunMonitor}>
-                      Ping ทั้งหมดตอนนี้
-                    </button>
                   </div>
                   {props.monitorResult && (
                     <p className="hint" style={{ marginTop: 10 }}>
                       {props.monitorResult}
                     </p>
                   )}
+
+                  <div className="settings-subhead">Ping ทั้งหมด / Log</div>
+                  <MonitorRunLog secret={props.secret} onFinished={props.onMonitorRunDone} />
                 </>
               )}
 

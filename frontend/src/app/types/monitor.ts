@@ -37,6 +37,8 @@ export interface Device {
   serial_no: string | null;
   status: DeviceStatus;
   monitor_enabled: boolean;
+  /** ตั้งใจไม่วางบนแผนผัง (เช่นสวิตช์ในห้อง server) — ไม่นับเป็น "ยังไม่วาง" */
+  hide_on_map?: boolean;
   last_seen: string | null;
   last_checked: string | null;
   last_latency_ms: number | null;
@@ -59,9 +61,10 @@ export interface MapItem {
   map_id: string;
   map_name: string;
   image_url: string;
+  floor: string | null;
 }
 
-export type LogAction = 'added' | 'updated' | 'moved' | 'deleted' | 'down' | 'up' | 'imported' | 'ip_table';
+export type LogAction = 'added' | 'updated' | 'moved' | 'deleted' | 'down' | 'up' | 'imported' | 'ip_table' | 'snapshot';
 
 export interface LogEntry {
   id: number;
@@ -127,6 +130,26 @@ export interface IpYearsInfo {
   auto: { add: boolean; remove: 'soft' | 'hard' | 'off' };
 }
 
+// ---------- สแนปช็อตรายการอุปกรณ์รายปี ----------
+export interface DeviceSnapshotYear {
+  year: number;
+  count: number;
+  created_at: string;
+  created_by: string | null;
+}
+
+export interface DeviceSnapshotYearsInfo {
+  years: DeviceSnapshotYear[];
+  current: number;
+}
+
+export interface DeviceSnapshot {
+  year: number;
+  created_at: string;
+  created_by: string | null;
+  devices: Device[];
+}
+
 export interface MonitorStatus {
   enabled: boolean;
   intervalSec: number;
@@ -134,6 +157,11 @@ export interface MonitorStatus {
   lastRunAt: string | null;
   checked: number;
 }
+
+/** มีตำแหน่งบนแผนผังแล้วหรือยัง */
+export const isPlaced = (d: Pick<Device, 'x_percent' | 'y_percent'>) => d.x_percent != null && d.y_percent != null;
+/** ยังไม่วาง และไม่ได้ตั้ง "ไม่แสดงบนแผนผัง" — ต้องไปวาง */
+export const needsPlacement = (d: Pick<Device, 'x_percent' | 'y_percent' | 'hide_on_map'>) => !d.hide_on_map && !isPlaced(d);
 
 export function formatAgo(iso: string | null): string {
   if (!iso) return '—';

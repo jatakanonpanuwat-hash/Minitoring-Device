@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Lock, Maximize, Minus, Move, Plus, X } from 'lucide-react';
+import { Check, Lock, Maximize, Minus, Move, Plus, X, MapPinOff } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { formatAgo } from '../types/monitor';
 import type { Device, MapItem } from '../types/monitor';
@@ -18,6 +18,8 @@ export interface MapView {
 interface ViewerProps {
   map: MapItem | null;
   devices: Device[];
+  /** อุปกรณ์ทั้งหมดในระบบ (ทุกแผนผัง) — ใช้รวบรวมวงแลนในแผงวางอุปกรณ์ */
+  allDevices?: Device[];
   mode: ViewMode;
   selectedId: string | null;
   /** แจ้งระดับซูมหลังหยุดซูม (ใช้แสดงที่ bottom bar) */
@@ -41,6 +43,10 @@ interface ViewerProps {
   placing?: Device | null;
   /** บันทึกตำแหน่งให้อุปกรณ์ที่กำลังวาง — คืนข้อความ error หรือ null */
   onConfirmPlaceExisting?: (id: string, x: number, y: number) => Promise<string | null>;
+  /** เปิดฟอร์มเพิ่มอุปกรณ์แบบไม่วางบนแผนผัง */
+  onAddUnplaced?: () => void;
+  /** เอาหมุดออกจากแผนผัง (ตั้งเป็น "ไม่แสดงบนแผนผัง") — ปุ่ม × บนหมุดในโหมดย้าย */
+  onRemoveFromMap?: (d: Device) => void;
 }
 
 type Gesture =
@@ -92,7 +98,7 @@ export function Viewer(props: ViewerProps) {
   const [placeError, setPlaceError] = useState('');
   const placeType = placeForm.device_type || lastType();
 
-  // เข้าโหมดเพิ่ม → เริ่มฟอร์มใหม่
+  // เข้าโหมดเพิ่ม → เริ่มฟอร์มใหม่ (ชั้นดึงจากแผนผังตอนบันทึก ไม่ต้องเก็บในฟอร์ม)
   useEffect(() => {
     if (mode === 'place') {
       setPlaceFormState({ ...EMPTY_PLACE_FORM, device_type: lastType() });
@@ -147,7 +153,7 @@ export function Viewer(props: ViewerProps) {
       name: f.name.trim(),
       device_type: placeType,
       zone: opt(f.zone),
-      floor: opt(f.floor),
+      floor: map?.floor || null,
       ip_address: opt(f.ip_address),
       lan: opt(f.lan),
       cabinet: opt(f.cabinet),
@@ -157,7 +163,6 @@ export function Viewer(props: ViewerProps) {
       direction: num(f.direction),
       fov_angle: num(f.fov_angle),
       remark: opt(f.remark),
-      ...(f.status ? { status: f.status } : {}),
     };
     setPlaceSaving(true);
     setPlaceError('');
@@ -176,9 +181,23 @@ export function Viewer(props: ViewerProps) {
   const gesture = useRef<Gesture>({ type: null });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const markerMove = useRef<{ id: string; x: number; y: number } | null>(null);
+  // ซูมแบบนุ่ม: เก็บ "ค่าซูมเป้าหมาย" + จุดยึด แล้วค่อย ๆ ไล่ไปทีละเฟรม (แทนการกระโดดทีละ 16%)
+  const zoomAnim = useRef<{ k: number; px: number; py: number } | null>(null);
+  const lastTs = useRef(0);
+  const reportedK = useRef(0);
+  // ขนาด viewer เก็บไว้ใน ref (อัปเดตจาก ResizeObserver) — ไม่ต้องเรียก getBoundingClientRect ทุก event
+  // ซึ่งบังคับให้เบราว์เซอร์คำนวณ layout ใหม่กลางการซูม
+  const viewerRect = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  const getViewerRect = () => {
+    if (!viewerRect.current && viewerRef.current) {
+      const r = viewerRef.current.getBoundingClientRect();
+      viewerRect.current = { left: r.left, top: r.top, width: r.width, height: r.height };
+    }
+    return viewerRect.current;
+  };
 
   const clampView = (v: MapView): MapView => {
-    const rect = viewerRef.current?.getBoundingClientRect();
+    const rect = getViewerRect();
     if (!rect) return v;
     const w = imgSize.current.w * v.k;
     const h = imgSize.current.h * v.k;
@@ -209,28 +228,68 @@ export function Viewer(props: ViewerProps) {
     }
   };
 
+  // หนึ่งเฟรมของแอนิเมชันซูม: ไล่ log(k) เข้าหาเป้าหมายแบบ exponential (τ ≈ 70ms) รอบจุดยึด
+  const tick = (ts: number) => {
+    const a = zoomAnim.current;
+    if (a) {
+      const dt = Math.min(lastTs.current ? ts - lastTs.current : 16, 50);
+      lastTs.current = ts;
+      const cur = view.current;
+      const t = 1 - Math.exp(-dt / 70);
+      const done = Math.abs(Math.log(a.k / cur.k)) < 0.002;
+      const k = done ? a.k : Math.exp(Math.log(cur.k) + (Math.log(a.k) - Math.log(cur.k)) * t);
+      const s = k / cur.k;
+      view.current = clampView({ k, x: a.px - (a.px - cur.x) * s, y: a.py - (a.py - cur.y) * s });
+      markInteracting();
+      if (done) {
+        zoomAnim.current = null;
+        lastTs.current = 0;
+      }
+    }
+    render();
+    if (zoomAnim.current) frame.current = requestAnimationFrame(tick);
+  };
+
   const schedule = () => {
-    if (!frame.current) frame.current = requestAnimationFrame(render);
+    if (!frame.current) frame.current = requestAnimationFrame(tick);
   };
 
   // ระหว่างลาก/ซูมให้ GPU ถือภาพไว้ (ลื่น) — หยุดแล้วปล่อยให้เบราว์เซอร์วาดใหม่ที่ความละเอียดจริง (คมชัด)
   const markInteracting = () => {
     viewerRef.current?.classList.add('interacting');
     clearTimeout(settleTimer.current);
+    // 300ms: หมุนล้อต่อเนื่อง (มีช่วงหยุดสั้น ๆ ระหว่างคลิก) จะไม่สลับ layer GPU ไปมาจนภาพกระตุก
     settleTimer.current = setTimeout(() => {
       viewerRef.current?.classList.remove('interacting');
-      onViewChange?.(view.current.k);
-    }, 180);
+      // แจ้งแอปเฉพาะเมื่อค่าซูมเปลี่ยนจริง (กัน render ทั้งแอปโดยไม่จำเป็น)
+      if (Math.abs(view.current.k - reportedK.current) > 1e-4) {
+        reportedK.current = view.current.k;
+        onViewChange?.(view.current.k);
+      }
+    }, 300);
   };
 
   const setView = (v: MapView) => {
+    zoomAnim.current = null; // ลาก/pinch/fit = ควบคุมตรง ยกเลิกแอนิเมชันที่ค้าง
+    lastTs.current = 0;
     view.current = clampView(v);
     markInteracting();
     schedule();
   };
 
+  // ซูมแบบนุ่ม (ล้อเมาส์ / ปุ่ม +− / ดับเบิลคลิก) — ซ้อนหลายคลิกได้ เพราะคูณจากค่าเป้าหมายเดิม
+  const zoomSmooth = (clientX: number, clientY: number, factor: number) => {
+    const rect = getViewerRect();
+    if (!rect) return;
+    const fromK = zoomAnim.current?.k ?? view.current.k;
+    const k = Math.min(Math.max(fromK * factor, limits.current.min), limits.current.max);
+    zoomAnim.current = { k, px: clientX - rect.left, py: clientY - rect.top };
+    markInteracting();
+    schedule();
+  };
+
   const zoomAt = (clientX: number, clientY: number, factor: number, from: MapView = view.current) => {
-    const rect = viewerRef.current!.getBoundingClientRect();
+    const rect = getViewerRect()!;
     const px = clientX - rect.left;
     const py = clientY - rect.top;
     const k = Math.min(Math.max(from.k * factor, limits.current.min), limits.current.max);
@@ -239,12 +298,12 @@ export function Viewer(props: ViewerProps) {
   };
 
   const zoomCenter = (factor: number) => {
-    const r = viewerRef.current!.getBoundingClientRect();
-    zoomAt(r.left + r.width / 2, r.top + r.height / 2, factor);
+    const r = getViewerRect();
+    if (r) zoomSmooth(r.left + r.width / 2, r.top + r.height / 2, factor);
   };
 
   const fit = () => {
-    const rect = viewerRef.current?.getBoundingClientRect();
+    const rect = getViewerRect();
     if (!rect || rect.width === 0) return;
     const fitK = Math.min(rect.width / imgSize.current.w, rect.height / imgSize.current.h) * 0.96;
     // ซูมออกได้ถึงครึ่งหนึ่งของขนาดพอดีจอ ซูมเข้าได้ถึง 4 เท่าของ pixel จริง (รูปเล็กอย่างน้อย 8 เท่าของพอดีจอ)
@@ -260,7 +319,7 @@ export function Viewer(props: ViewerProps) {
   const pendingFocus = useRef<string | null>(null);
   const applyFocus = (id: string) => {
     const d = devices.find((x) => x.id === id);
-    const rect = viewerRef.current?.getBoundingClientRect();
+    const rect = getViewerRect();
     if (!d || d.x_percent == null || d.y_percent == null || !rect) return false;
     const fitK = limits.current.min * 2;
     const k = Math.min(Math.max(view.current.k, fitK * 4), limits.current.max);
@@ -291,7 +350,11 @@ export function Viewer(props: ViewerProps) {
       // ซูมตามระยะที่หมุนจริง: ล้อเมาส์ 1 คลิก (~100px) ≈ 16%, trackpad ซูมละเอียดตามนิ้ว
       const sensitivity = e.ctrlKey ? 0.01 : 0.0015;
       const factor = Math.min(Math.max(Math.exp(-dy * sensitivity), 0.5), 2);
-      zoomAt(e.clientX, e.clientY, factor);
+      // trackpad / pinch ส่ง event ถี่และละเอียดอยู่แล้ว → ตามนิ้วทันที
+      // ล้อเมาส์ (ทีละคลิกใหญ่ ๆ) → แอนิเมชันนุ่ม
+      const isTrackpad = e.ctrlKey || (e.deltaMode === 0 && Math.abs(e.deltaY) < 40);
+      if (isTrackpad && !zoomAnim.current) zoomAt(e.clientX, e.clientY, factor);
+      else zoomSmooth(e.clientX, e.clientY, factor);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -303,12 +366,16 @@ export function Viewer(props: ViewerProps) {
     const el = viewerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
+      viewerRect.current = null; // วัดใหม่ครั้งถัดไป
       view.current = clampView(view.current);
       schedule();
     });
     ro.observe(el);
+    const invalidate = () => (viewerRect.current = null);
+    window.addEventListener('resize', invalidate);
     return () => {
       ro.disconnect();
+      window.removeEventListener('resize', invalidate);
       cancelAnimationFrame(frame.current);
       clearTimeout(settleTimer.current);
     };
@@ -437,7 +504,7 @@ export function Viewer(props: ViewerProps) {
       onPointerCancel={onViewerUp}
       onDoubleClick={(e) => {
         if (map && mode === 'view' && !(e.target as HTMLElement).closest('.place-banner, .zoom-bar, .map-tools, .place-panel, .dev-marker')) {
-          zoomAt(e.clientX, e.clientY, 2);
+          zoomSmooth(e.clientX, e.clientY, 2);
         }
       }}
     >
@@ -451,8 +518,10 @@ export function Viewer(props: ViewerProps) {
               onLoad={(e) => {
                 const img = e.currentTarget;
                 imgSize.current = { w: img.naturalWidth, h: img.naturalHeight };
-                if (map && fittedMap.current !== map.map_id) {
-                  fittedMap.current = map.map_id;
+                // พอดีจออัตโนมัติเมื่อเปลี่ยนแผนผัง หรือเปลี่ยนรูปแผนผังเดิม (URL ใหม่)
+                const fitKey = map ? `${map.map_id}|${map.image_url}` : '';
+                if (map && fittedMap.current !== fitKey) {
+                  fittedMap.current = fitKey;
                   fit();
                   if (pendingFocus.current && applyFocus(pendingFocus.current)) pendingFocus.current = null;
                 }
@@ -532,6 +601,21 @@ export function Viewer(props: ViewerProps) {
                     </div>
                   )}
                   {rot && <span className="cam-rotate-deg mono">{rot.dir}°</span>}
+                  {mode === 'move' && props.onRemoveFromMap && !rot && (
+                    // เอาหมุดออกจากแผนผัง — ไม่ให้กดแล้วกลายเป็นเริ่มลากหมุด
+                    <button
+                      className="dev-remove"
+                      title="เอาออกจากแผนผัง"
+                      aria-label={`เอา ${d.name} ออกจากแผนผัง`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onRemoveFromMap?.(d);
+                      }}
+                    >
+                      <X />
+                    </button>
+                  )}
                   {problem && <span className="dev-pulse" />}
                   <span className="dev-badge">
                     <CatalogIcon icon={t.icon} />
@@ -618,11 +702,13 @@ export function Viewer(props: ViewerProps) {
           <PlacePanel
             form={{ ...placeForm, device_type: placeType }}
             onForm={setPlaceForm}
+            mapFloor={map?.floor || null}
             pending={pending}
             saving={placeSaving}
             error={placeError}
             onSave={confirmPlace}
             onCancel={() => props.onMode('view')}
+            allDevices={props.allDevices ?? devices}
           />
         </>
       )}
@@ -645,7 +731,16 @@ export function Viewer(props: ViewerProps) {
               <button className="map-tool primary" title="เพิ่มอุปกรณ์ - คลิกบนแผนผังเพื่อวาง" onClick={() => props.onMode('place')}>
                 <Plus /> เพิ่มอุปกรณ์
               </button>
-              <button className="map-tool" title="ย้ายอุปกรณ์ / หมุนทิศกล้อง" onClick={() => props.onMode('move')}>
+              {props.onAddUnplaced && (
+                <button
+                  className="map-tool"
+                  title="เพิ่มอุปกรณ์ที่ไม่ต้องวางบนแผนผัง (เช่น สวิตช์ / NVR ในห้อง server)"
+                  onClick={props.onAddUnplaced}
+                >
+                  <MapPinOff /> เพิ่มแบบไม่วาง
+                </button>
+              )}
+              <button className="map-tool" title="ย้ายอุปกรณ์ / หมุนทิศกล้อง / เอาออกจากแผนผัง" onClick={() => props.onMode('move')}>
                 <Move /> ย้าย / หมุน
               </button>
             </>

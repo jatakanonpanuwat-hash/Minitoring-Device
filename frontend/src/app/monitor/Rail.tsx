@@ -1,4 +1,4 @@
-import { History, LayoutDashboard, Map as MapIcon, Network, Settings, Table } from 'lucide-react';
+import { History, LayoutDashboard, Map as MapIcon, Settings, Table } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { useAuth } from './auth';
 
@@ -7,15 +7,14 @@ interface RailProps {
   onPanel: () => void;
   onOpenTable: () => void;
   onOpenLogs: () => void;
-  onOpenIpTable: () => void;
   page: PageKind;
   onOpenDashboard: () => void;
   onOpenSettings: () => void;
 }
 
-export type PageKind = 'map' | 'dashboard' | 'table' | 'iptable' | 'logs' | 'settings';
+export type PageKind = 'map' | 'dashboard' | 'table' | 'logs' | 'settings';
 
-export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, onOpenIpTable, page, onOpenDashboard, onOpenSettings }: RailProps) {
+export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, page, onOpenDashboard, onOpenSettings }: RailProps) {
   const { isAdmin } = useAuth();
   return (
     <nav className="rail">
@@ -42,14 +41,6 @@ export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, onOpenIpTabl
       >
         <Table />
         <span>List</span>
-      </button>
-      <button
-        className={cn('rail-btn', page === 'iptable' && 'active')}
-        title="NVR - TABLE_IP / NVR Management"
-        onClick={onOpenIpTable}
-      >
-        <Network />
-        <span>NVR</span>
       </button>
       <button
         className={cn('rail-btn', page === 'logs' && 'active')}

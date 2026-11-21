@@ -105,6 +105,7 @@ const MAPS = [
   {
     map_id: 'mock-floor-1',
     map_name: 'อาคาร A ชั้น 1 (ตัวอย่าง)',
+    floor: '1',
     rooms: [
       { x: 0.03, y: 0.05, w: 0.22, h: 0.40, color: ROSE },   // Server room
       { x: 0.27, y: 0.05, w: 0.45, h: 0.40, color: GREEN },  // Office
@@ -116,6 +117,7 @@ const MAPS = [
   {
     map_id: 'mock-floor-2',
     map_name: 'อาคาร A ชั้น 2 (ตัวอย่าง)',
+    floor: '2',
     rooms: [
       { x: 0.03, y: 0.05, w: 0.46, h: 0.90, color: GREEN },  // Office 2
       { x: 0.51, y: 0.05, w: 0.46, h: 0.42, color: AMBER },  // Training
@@ -188,6 +190,7 @@ async function seed() {
     form.append('image', new Blob([drawFloorPlan(1200, 700, m.rooms)], { type: 'image/png' }), `${m.map_id}.png`);
     form.append('map_id', m.map_id);
     form.append('map_name', m.map_name);
+    form.append('floor', m.floor);
     await api('POST', '/maps', form);
   }
   console.log(`สร้างแผนผัง ${MAPS.length} แผ่น`);

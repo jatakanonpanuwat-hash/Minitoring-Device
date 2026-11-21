@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileSpreadsheet, FolderOpen, RefreshCw } from 'lucide-react';
 import { getXlsxSyncStatus, importXlsx, saveSettings, type XlsxImportSummary, type XlsxSyncStatus } from '../utils/monitorClient';
+import { confirmDialog } from '../components/ui/confirm';
 import { formatAgo } from '../types/monitor';
 
 interface ExcelImportProps {
@@ -97,13 +98,13 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
     if (file) run(file, true, opts);
   };
 
-  const confirmImport = () => {
+  const confirmImport = async () => {
     if (!file || !preview) return;
     const warn = preview.cameras
       ? `กล้องประเภท camera ที่มีอยู่ ${preview.cameras.current} ตัวจะถูกแทนที่ด้วย ${preview.cameras.count} ตัวจากไฟล์\n(ตำแหน่ง/สถานะที่แก้ในเว็บหลังนำเข้าครั้งก่อนจะหาย — อุปกรณ์ประเภทอื่นไม่โดนลบ)\n\n`
       : '';
     const ipWarn = preview.iptable.length ? `TABLE_IP ปี ${preview.iptable.map((y) => y.year).join(', ')} จะถูกแทนที่ทั้งปี\n\n` : '';
-    if (window.confirm(`${warn}${ipWarn}ยืนยันนำเข้า?`)) run(file, false);
+    if (await confirmDialog({ title: 'นำเข้าข้อมูล', message: `${warn}${ipWarn}ยืนยันนำเข้า?`, confirmLabel: 'นำเข้า', danger: true })) run(file, false);
   };
 
   return (

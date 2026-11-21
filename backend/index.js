@@ -121,6 +121,7 @@ const memSettings = {};
 const memIpRows = [];     // TABLE_IP (iptable.js)
 const memIpUpdates = [];  // TABLE_IP_UPDATES (iptable.js)
 const memUsers = [];      // บัญชีผู้ใช้ (auth.js)
+const memDeviceSnapshots = []; // สแนปช็อตรายการอุปกรณ์รายปี { year, created_at, created_by, device_count, devices }
 
 const STORE_FILE = process.env.STORE_FILE === 'off'
   ? null
@@ -130,7 +131,7 @@ let lastSaved = '';
 function storeSnapshot() {
   return JSON.stringify({
     devices: memDevices, maps: memMaps, logs: memLogs, settings: memSettings,
-    ip_rows: memIpRows, ip_updates: memIpUpdates, users: memUsers
+    ip_rows: memIpRows, ip_updates: memIpUpdates, users: memUsers, device_snapshots: memDeviceSnapshots
   });
 }
 
@@ -145,6 +146,7 @@ function loadStore() {
     memIpRows.push(...(data.ip_rows || []));
     memIpUpdates.push(...(data.ip_updates || []));
     memUsers.push(...(data.users || []));
+    memDeviceSnapshots.push(...(data.device_snapshots || []));
     lastSaved = storeSnapshot();
     console.log(`[store] โหลดข้อมูลจาก ${STORE_FILE}: อุปกรณ์ ${memDevices.length}, แผนผัง ${memMaps.length}, ประวัติ ${memLogs.length}, TABLE_IP ${memIpRows.length}`);
   } catch (err) {
@@ -249,13 +251,15 @@ const DEVICE_COLUMNS = {
   install_detail:  'TEXT',
   requested_by:    'VARCHAR(200)',
   updated_at:      'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-  updated_by:      'VARCHAR(200)'
+  updated_by:      'VARCHAR(200)',
+  hide_on_map:     'TINYINT(1) NOT NULL DEFAULT 0'  // 1 = ตั้งใจไม่วางบนแผนผัง (ไม่นับเป็น "ยังไม่วาง")
 };
 
 // ฟิลด์ที่ client แก้ได้ (สถานะ ping/last_seen ระบบเป็นคนเขียน)
 const DEVICE_FIELDS = ['name', 'device_type', 'zone', 'floor', 'x_percent', 'y_percent', 'ip_address',
   'mac_address', 'brand', 'model', 'serial_no', 'status', 'monitor_enabled', 'remark', 'map_id',
-  'direction', 'fov_angle', 'lan', 'cabinet', 'install_area', 'install_detail', 'requested_by', 'updated_by'];
+  'direction', 'fov_angle', 'lan', 'cabinet', 'install_area', 'install_detail', 'requested_by', 'updated_by',
+  'hide_on_map'];
 
 // ========== DB INIT ==========
 async function initDB() {
@@ -287,9 +291,11 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS maps (
       map_id    VARCHAR(100) NOT NULL PRIMARY KEY,
       map_name  VARCHAR(200) NOT NULL,
-      image_url VARCHAR(500) NOT NULL
+      image_url VARCHAR(500) NOT NULL,
+      floor     VARCHAR(50)
     )
   `);
+  await query('ALTER TABLE maps ADD COLUMN IF NOT EXISTS floor VARCHAR(50)');
   await query(`
     CREATE TABLE IF NOT EXISTS logs (
       id            INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -312,6 +318,15 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS settings (
       \`key\`   VARCHAR(100) NOT NULL PRIMARY KEY,
       \`value\` TEXT
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS device_snapshots (
+      year         INT          NOT NULL PRIMARY KEY,
+      created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_by   VARCHAR(200),
+      device_count INT          NOT NULL DEFAULT 0,
+      data         LONGTEXT
     )
   `);
   await migrateFromCctv();
@@ -410,14 +425,17 @@ async function replaceDevicesByType(type, rows) {
 async function replaceAllMaps(rows) {
   const clean = rows
     .filter((r) => r && r.map_id && r.image_url)
-    .map((r) => ({ map_id: String(r.map_id), map_name: String(r.map_name || r.map_id), image_url: String(r.image_url) }));
+    .map((r) => ({
+      map_id: String(r.map_id), map_name: String(r.map_name || r.map_id), image_url: String(r.image_url),
+      floor: r.floor ? String(r.floor).trim().slice(0, 50) || null : null,
+    }));
   if (!USE_DB) {
     memMaps.length = 0;
     memMaps.push(...clean);
     return { imported: clean.length, skipped: rows.length - clean.length };
   }
   await query('DELETE FROM maps');
-  if (clean.length > 0) await bulkInsert('maps', ['map_id', 'map_name', 'image_url'], clean);
+  if (clean.length > 0) await bulkInsert('maps', ['map_id', 'map_name', 'image_url', 'floor'], clean);
   return { imported: clean.length, skipped: rows.length - clean.length };
 }
 
@@ -468,6 +486,16 @@ async function pickDeviceFields(body) {
   }
   if (out.monitor_enabled !== undefined) out.monitor_enabled = out.monitor_enabled ? 1 : 0;
   if (out.ip_address) out.ip_address = String(out.ip_address).trim();
+  if (out.hide_on_map !== undefined) out.hide_on_map = out.hide_on_map && out.hide_on_map !== 'false' && out.hide_on_map !== '0' ? 1 : 0;
+  if (out.hide_on_map === 1) {
+    // ไม่แสดงบนแผนผัง = ไม่มีตำแหน่ง
+    out.x_percent = null;
+    out.y_percent = null;
+    out.map_id = null;
+  } else if (out.hide_on_map === undefined && out.x_percent != null && out.y_percent != null) {
+    // วางลงแผนผัง → ยกเลิก "ไม่แสดงบนแผนผัง" อัตโนมัติ
+    out.hide_on_map = 0;
+  }
   return out;
 }
 
@@ -483,7 +511,8 @@ function normalizeDevice(d) {
     fov_angle: num(d.fov_angle),
     last_latency_ms: num(d.last_latency_ms),
     fail_count: Number(d.fail_count || 0),
-    monitor_enabled: !!Number(d.monitor_enabled)
+    monitor_enabled: !!Number(d.monitor_enabled),
+    hide_on_map: !!Number(d.hide_on_map || 0)
   };
 }
 
@@ -496,6 +525,64 @@ async function listDevices(mapId) {
     ? await query('SELECT * FROM devices WHERE map_id = ? ORDER BY name', [mapId])
     : await query('SELECT * FROM devices ORDER BY name');
   return (Array.isArray(rows) ? rows : []).map(normalizeDevice);
+}
+
+// ---------- device snapshots (สแนปช็อตรายการอุปกรณ์รายปี) ----------
+const snapYearOf = (v) => {
+  const y = parseInt(v, 10);
+  return y >= 2000 && y <= 2100 ? y : null;
+};
+
+async function listSnapshotYears() {
+  if (!USE_DB) {
+    return memDeviceSnapshots
+      .map((s) => ({
+        year: s.year,
+        count: Array.isArray(s.devices) ? s.devices.length : (s.device_count || 0),
+        created_at: s.created_at,
+        created_by: s.created_by || null,
+      }))
+      .sort((a, b) => b.year - a.year);
+  }
+  const rows = await query('SELECT year, device_count, created_at, created_by FROM device_snapshots ORDER BY year DESC');
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    year: Number(r.year), count: Number(r.device_count || 0), created_at: r.created_at, created_by: r.created_by || null,
+  }));
+}
+
+async function getSnapshot(year) {
+  if (!USE_DB) {
+    const s = memDeviceSnapshots.find((x) => x.year === year);
+    if (!s) return null;
+    const devices = Array.isArray(s.devices) ? s.devices : [];
+    return { year: s.year, created_at: s.created_at, created_by: s.created_by || null, devices: devices.map(normalizeDevice) };
+  }
+  const rows = await query('SELECT year, created_at, created_by, data FROM device_snapshots WHERE year = ?', [year]);
+  if (!rows[0]) return null;
+  let devices = [];
+  try {
+    const parsed = JSON.parse(rows[0].data || '[]');
+    devices = Array.isArray(parsed) ? parsed : [];
+  } catch { devices = []; }
+  return { year: Number(rows[0].year), created_at: rows[0].created_at, created_by: rows[0].created_by || null, devices: devices.map(normalizeDevice) };
+}
+
+async function saveSnapshot(year, devices, by) {
+  const created_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  if (!USE_DB) {
+    const rec = { year, created_at, created_by: by || null, device_count: devices.length, devices };
+    const i = memDeviceSnapshots.findIndex((x) => x.year === year);
+    if (i >= 0) memDeviceSnapshots[i] = rec;
+    else memDeviceSnapshots.push(rec);
+    return rec;
+  }
+  await query(
+    `INSERT INTO device_snapshots (year, created_at, created_by, device_count, data) VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE created_at = VALUES(created_at), created_by = VALUES(created_by),
+     device_count = VALUES(device_count), data = VALUES(data)`,
+    [year, created_at, by || null, devices.length, JSON.stringify(devices)]
+  );
+  return { year, created_at, created_by: by || null, device_count: devices.length };
 }
 
 async function getDevice(id) {
@@ -568,21 +655,23 @@ async function listMaps() {
   return Array.isArray(rows) ? rows : [];
 }
 
-async function saveMap({ map_id, map_name, image_url }) {
+async function saveMap({ map_id, map_name, image_url, floor }) {
   if (!USE_DB) {
     const existing = memMaps.find((m) => m.map_id === map_id);
     if (existing) {
       if (map_name) existing.map_name = map_name;
       if (image_url) existing.image_url = image_url;
+      if (floor !== undefined) existing.floor = floor;
       return existing;
     }
-    const map = { map_id, map_name, image_url };
+    const map = { map_id, map_name, image_url, floor: floor ?? null };
     memMaps.push(map);
     return map;
   }
   await query(
-    'INSERT INTO maps (map_id, map_name, image_url) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE map_name = VALUES(map_name), image_url = VALUES(image_url)',
-    [map_id, map_name, image_url]
+    `INSERT INTO maps (map_id, map_name, image_url, floor) VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE map_name = VALUES(map_name), image_url = VALUES(image_url), floor = VALUES(floor)`,
+    [map_id, map_name, image_url, floor ?? null]
   );
   const rows = await query('SELECT * FROM maps WHERE map_id = ?', [map_id]);
   return rows[0];
@@ -649,7 +738,11 @@ const SETTING_DEFAULTS = {
   IPTABLE_AUTO_ADD: 'TRUE',     // เพิ่ม/แก้กล้อง → ซิงก์ IP เข้า TABLE_IP ปีปัจจุบัน
   IPTABLE_AUTO_REMOVE: 'soft',  // ลบกล้อง → soft (ใส่สถานะ DELETED) / hard (ลบแถว) / off
   XLSX_AUTO_SYNC: 'TRUE',       // เฝ้าไฟล์ Excel ในโปรเจกต์ เปลี่ยนเมื่อไหร่นำเข้าใหม่
-  XLSX_LAST_HASH: ''            // (ภายใน) hash ของไฟล์ที่ซิงก์ล่าสุด
+  XLSX_LAST_HASH: '',           // (ภายใน) hash ของไฟล์ที่ซิงก์ล่าสุด
+  TELEGRAM_ENABLED: 'FALSE',    // แจ้งเตือน Telegram เมื่ออุปกรณ์ offline
+  TELEGRAM_BOT_TOKEN: '',       // token จาก @BotFather (ลับ — ไม่ส่งกลับไปที่หน้าเว็บ)
+  TELEGRAM_CHAT_ID: '',         // chat id ของกลุ่ม/คน ที่จะส่งข้อความไป
+  TELEGRAM_NOTIFY_RECOVERY: 'TRUE' // แจ้งด้วยเมื่อกลับมา online
 };
 
 async function getSetting(key) {
@@ -836,11 +929,111 @@ async function applyPingResult(device, result, cfg) {
   if (next === 'offline' && !wasDown) {
     const details = `ping ไม่ตอบ ${patch.fail_count} ครั้งติดกัน`;
     await addLog({ action: 'down', device_id: device.id, device_name: device.name, zone: device.zone, floor: device.floor, details, employee_name: 'system' });
+    queueAlert('down', device, { failCount: patch.fail_count });
   } else if (wasDown && (next === 'online' || next === 'warning')) {
     const details = `ping ตอบกลับ ${result.latency != null ? `${result.latency} ms` : ''}`.trim();
     await addLog({ action: 'up', device_id: device.id, device_name: device.name, zone: device.zone, floor: device.floor, details, employee_name: 'system' });
+    queueAlert('up', device, { latency: result.latency });
   }
   return { ...device, ...patch, status: next };
+}
+
+// ========== TELEGRAM (แจ้งเตือนเมื่อ offline / กลับมา online) ==========
+// เก็บเหตุการณ์ของรอบ ping นี้ไว้ แล้วส่งรวมเป็นข้อความเดียวตอนจบรอบ
+// — สวิตช์ล่มทีเดียว 50 กล้อง จะได้ 1 ข้อความ ไม่ใช่ 50 ข้อความ
+const TELEGRAM_MAX_LIST = 30;      // แสดงรายชื่อสูงสุดต่อหัวข้อ เกินนี้สรุปเป็น "และอีก N เครื่อง"
+const TELEGRAM_MAX_CHARS = 3900;   // Telegram จำกัด 4096 ตัวอักษรต่อข้อความ
+const TOKEN_RE = /^\d+:[A-Za-z0-9_-]{20,}$/;
+const alertQueue = { down: [], up: [] };
+
+function queueAlert(kind, device, extra = {}) {
+  alertQueue[kind].push({
+    name: device.name, ip: device.ip_address, zone: device.zone, floor: device.floor, lan: device.lan, ...extra,
+  });
+}
+
+const escHtml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+async function telegramConfig() {
+  return {
+    enabled: String(await getSetting('TELEGRAM_ENABLED')).toUpperCase() === 'TRUE',
+    token: String(await getSetting('TELEGRAM_BOT_TOKEN')).trim(),
+    chatId: String(await getSetting('TELEGRAM_CHAT_ID')).trim(),
+    notifyRecovery: String(await getSetting('TELEGRAM_NOTIFY_RECOVERY')).toUpperCase() !== 'FALSE',
+  };
+}
+
+// ส่งข้อความผ่าน Bot API (fetch ในตัวของ Node 18+) — throw ข้อความภาษาไทยถ้าส่งไม่ได้
+async function sendTelegram(text, { token, chatId }) {
+  if (!token || !chatId) throw new Error('ยังไม่ได้ตั้งค่า Bot Token / Chat ID');
+  if (!TOKEN_RE.test(token)) throw new Error('รูปแบบ Bot Token ไม่ถูกต้อง');
+  let res;
+  try {
+    res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (err) {
+    throw new Error(`เชื่อมต่อ Telegram ไม่ได้ (${err.name === 'TimeoutError' ? 'หมดเวลา' : err.message}) — เครื่อง server ออกอินเทอร์เน็ตได้หรือไม่?`);
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.ok) {
+    const desc = body.description || `HTTP ${res.status}`;
+    if (res.status === 401) throw new Error('Bot Token ไม่ถูกต้อง');
+    if (/chat not found/i.test(desc)) throw new Error('ไม่พบ Chat ID นี้ — ต้องทักบอท / เพิ่มบอทเข้ากลุ่มก่อน');
+    throw new Error(`Telegram ตอบกลับ: ${desc}`);
+  }
+}
+
+async function formatAlertLines(items, kind) {
+  const catalog = await getCatalog().catch(() => null);
+  const zoneLabel = (k) => (k && catalog?.zones?.find((z) => z.key === k)?.label) || k || '';
+  const lines = items.slice(0, TELEGRAM_MAX_LIST).map((d) => {
+    const where = [d.floor && `ชั้น ${d.floor}`, zoneLabel(d.zone), d.lan && `LAN ${d.lan}`].filter(Boolean).join(' · ');
+    const tail = kind === 'up' && d.latency != null ? ` — ${d.latency} ms` : '';
+    return `• <b>${escHtml(d.name)}</b> <code>${escHtml(d.ip)}</code>${tail}${where ? `\n   ${escHtml(where)}` : ''}`;
+  });
+  if (items.length > TELEGRAM_MAX_LIST) lines.push(`… และอีก ${items.length - TELEGRAM_MAX_LIST} เครื่อง`);
+  return lines;
+}
+
+const thaiTime = () => new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'medium' });
+
+async function buildAlertMessage(down, up) {
+  const parts = [];
+  if (down.length) parts.push(`🔴 <b>อุปกรณ์ Offline ${down.length} เครื่อง</b>`, ...(await formatAlertLines(down, 'down')));
+  if (up.length) {
+    if (parts.length) parts.push('');
+    parts.push(`🟢 <b>กลับมา Online ${up.length} เครื่อง</b>`, ...(await formatAlertLines(up, 'up')));
+  }
+  parts.push('', `🕒 ${escHtml(thaiTime())}`);
+  let text = parts.join('\n');
+  // ตัดที่ขึ้นบรรทัดใหม่ (ไม่ตัดกลางแท็ก HTML)
+  if (text.length > TELEGRAM_MAX_CHARS) text = `${text.slice(0, text.lastIndexOf('\n', TELEGRAM_MAX_CHARS))}\n…`;
+  return text;
+}
+
+const telegramState = { lastSentAt: null, lastError: null };
+
+// ส่งเหตุการณ์ที่ค้างอยู่ (เรียกตอนจบรอบ ping และหลัง ping ทีละเครื่อง)
+async function flushAlerts() {
+  const down = alertQueue.down.splice(0);
+  const up = alertQueue.up.splice(0);
+  if (!down.length && !up.length) return;
+  try {
+    const cfg = await telegramConfig();
+    if (!cfg.enabled || !cfg.token || !cfg.chatId) return;
+    const upList = cfg.notifyRecovery ? up : [];
+    if (!down.length && !upList.length) return;
+    await sendTelegram(await buildAlertMessage(down, upList), cfg);
+    telegramState.lastSentAt = new Date().toISOString();
+    telegramState.lastError = null;
+  } catch (err) {
+    telegramState.lastError = err.message;
+    console.error('[telegram]', err.message);
+  }
 }
 
 async function monitorConfig() {
@@ -858,29 +1051,72 @@ async function checkDevice(device, cfg) {
   return applyPingResult(device, result, cfg);
 }
 
+// ความคืบหน้าของรอบ ping ล่าสุด — หน้า Settings ดึงไปแสดงเป็น log วิ่ง (GET /api/monitor/progress)
+const PROGRESS_MAX_ENTRIES = 3000;
+const monitorProgress = {
+  runId: 0, source: null, running: false, startedAt: null, finishedAt: null,
+  total: 0, done: 0, counts: { online: 0, warning: 0, offline: 0, error: 0 }, changed: 0,
+  seq: 0, entries: [], note: null,
+};
+
+function recordProgress(device, after, err) {
+  const p = monitorProgress;
+  p.done++;
+  const status = err ? 'error' : after.status;
+  if (p.counts[status] !== undefined) p.counts[status]++;
+  const changed = !err && after.status !== device.status;
+  if (changed) p.changed++;
+  p.entries.push({
+    seq: ++p.seq, at: new Date().toISOString(), id: device.id, name: device.name, ip: device.ip_address,
+    status, prev: device.status, changed, latency: err ? null : after.last_latency_ms ?? null,
+    error: err ? err.message : null,
+  });
+  if (p.entries.length > PROGRESS_MAX_ENTRIES) p.entries.splice(0, p.entries.length - PROGRESS_MAX_ENTRIES);
+}
+
 // ping ทุกเครื่องที่เปิด monitor + มี IP + ไม่อยู่ในสถานะ maintenance (ทำพร้อมกันทีละ 20 เครื่อง)
-async function runMonitorCycle() {
-  if (monitorState.running) return;
+// source: 'auto' = ตามรอบเวลา (ข้ามถ้าปิด monitor), 'manual' = กด "Ping ทั้งหมดตอนนี้" (ping แม้ปิด monitor อัตโนมัติ)
+async function runMonitorCycle(source = 'auto') {
+  if (monitorState.running) return false;
   monitorState.running = true;
   const started = Date.now();
+  const p = monitorProgress;
   try {
     const cfg = await monitorConfig();
-    if (!cfg.enabled) return;
+    if (!cfg.enabled && source !== 'manual') return false;
     const paused = await pausedStatusKeys();
     const targets = (await listDevices()).filter((d) => d.monitor_enabled && d.ip_address && !paused.has(d.status));
+    Object.assign(p, {
+      runId: p.runId + 1, source, running: true, startedAt: new Date().toISOString(), finishedAt: null,
+      total: targets.length, done: 0, counts: { online: 0, warning: 0, offline: 0, error: 0 }, changed: 0,
+      entries: [], note: null,
+    });
     const CONCURRENCY = 20;
     for (let i = 0; i < targets.length; i += CONCURRENCY) {
       await Promise.all(targets.slice(i, i + CONCURRENCY).map((d) =>
-        checkDevice(d, cfg).catch((err) => console.error(`[monitor] ${d.name}:`, err.message))
+        checkDevice(d, cfg)
+          .then((after) => recordProgress(d, after, null))
+          .catch((err) => {
+            console.error(`[monitor] ${d.name}:`, err.message);
+            recordProgress(d, d, err);
+          })
       ));
     }
     monitorState.checked = targets.length;
+    flushAlerts(); // ไม่ต้องรอ — ส่ง Telegram ช้าไม่ควรถ่วงรอบ ping
     monitorState.lastRunAt = new Date().toISOString();
     monitorState.lastDurationMs = Date.now() - started;
+    return true;
   } catch (err) {
     console.error('[monitor] cycle error:', err.message);
+    p.note = `เกิดข้อผิดพลาด: ${err.message}`;
+    return false;
   } finally {
     monitorState.running = false;
+    if (p.running) {
+      p.running = false;
+      p.finishedAt = new Date().toISOString();
+    }
   }
 }
 
@@ -910,6 +1146,46 @@ app.get('/api/admin/check', requireAdmin, (req, res) => {
 // หน้าเว็บใช้ตัดสินว่าจะแสดงช่องรหัสผู้ดูแลไหม
 app.get('/api/admin/mode', async (req, res) => {
   res.json({ required: !!ADMIN_SECRET || (await auth.userCount()) > 0 });
+});
+
+// ---------- device snapshots (สแนปช็อตรายการอุปกรณ์รายปี) ----------
+// (ต้องอยู่ก่อน /api/devices/:id ไม่งั้น 'snapshots' จะถูกจับเป็น id)
+app.get('/api/devices/snapshots/years', async (req, res) => {
+  try {
+    res.json({ years: await listSnapshotYears(), current: new Date().getFullYear() });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/devices/snapshots', async (req, res) => {
+  try {
+    const year = snapYearOf(req.query.year);
+    if (!year) return res.status(400).json({ error: 'ต้องระบุปี (2000–2100)' });
+    const snap = await getSnapshot(year);
+    if (!snap) return res.status(404).json({ error: `ยังไม่มีสแนปช็อตปี ${year}` });
+    res.json(snap);
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// บันทึกสแนปช็อตจากรายการอุปกรณ์ปัจจุบัน (มีของปีนั้นแล้ว = เขียนทับ)
+app.post('/api/devices/snapshots', requireAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const year = snapYearOf(body.year) || new Date().getFullYear();
+    const devices = await listDevices(null);
+    const rec = await saveSnapshot(year, devices, body.employee_name || null);
+    await addLog({
+      employee_id: body.employee_id, employee_name: body.employee_name,
+      action: 'snapshot', details: `บันทึกสแนปช็อตรายการอุปกรณ์ปี ${year} (${devices.length} เครื่อง)`,
+    });
+    res.json({ year: rec.year, count: devices.length, created_at: rec.created_at });
+  } catch (err) {
+    console.error('Save snapshot error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // ---------- devices ----------
@@ -974,14 +1250,15 @@ app.put('/api/devices/:id', requireEditor, async (req, res) => {
       data.fail_count = 0;
     }
     const device = await updateDevice(req.params.id, data);
-    const moved = (data.x_percent !== undefined && Number(data.x_percent) !== old.x_percent) ||
-                  (data.y_percent !== undefined && Number(data.y_percent) !== old.y_percent);
+    const removed = old.x_percent != null && device.x_percent == null;
+    const moved = !removed && ((data.x_percent !== undefined && Number(data.x_percent) !== old.x_percent) ||
+                  (data.y_percent !== undefined && Number(data.y_percent) !== old.y_percent));
     const action = moved ? 'moved' : 'updated';
     await addLog({
       employee_id: req.body.employee_id, employee_name: req.body.employee_name,
       action, device_id: device.id, device_name: device.name,
       zone: device.zone, floor: device.floor,
-      details: moved ? `ย้ายตำแหน่ง ${device.name}` : `แก้ไข ${device.name}`,
+      details: removed ? `เอาออกจากแผนผัง ${device.name}` : moved ? `ย้ายตำแหน่ง ${device.name}` : `แก้ไข ${device.name}`,
       old_values: old, new_values: device
     });
     await ipTable.onDeviceUpdated(old, device, { name: req.body && req.body.employee_name });
@@ -1071,13 +1348,16 @@ async function applyWorkbook(wb, { only, fileName, keepRuntime = false }) {
     result.maps.push({ map_id: mapId, map_name: mapName, status: 'downloaded' });
   }
   if (only.includes('cameras') && wb.devices.length > 0) {
-    const old = keepRuntime ? new Map((await listDevices()).filter((d) => d.device_type === 'camera').map((d) => [d.id, d])) : new Map();
+    const old = new Map((await listDevices()).filter((d) => d.device_type === 'camera').map((d) => [d.id, d]));
     result.cameras = await replaceDevicesByType('camera', wb.devices);
     if (old.size) {
       const paused = await pausedStatusKeys();
       for (const d of await listDevices()) {
         const o = old.get(d.id);
-        if (!o || d.device_type !== 'camera' || o.ip_address !== d.ip_address) continue;
+        if (!o || d.device_type !== 'camera') continue;
+        // "ไม่แสดงบนแผนผัง" ไม่มีใน Excel — คงค่าเดิมไว้ (ถ้าใน Excel ไม่ได้ใส่ตำแหน่งให้)
+        if (o.hide_on_map && d.x_percent == null) await writeMonitorResult(d.id, { hide_on_map: 1 });
+        if (!keepRuntime || o.ip_address !== d.ip_address) continue;
         const keep = { fail_count: o.fail_count, last_seen: o.last_seen, last_checked: o.last_checked, last_latency_ms: o.last_latency_ms };
         // สถานะที่หยุด ping (เช่น maintenance) ใน Excel ชนะ, นอกนั้นใช้ผล ping ล่าสุด
         if (!paused.has(d.status) && !paused.has(o.status)) keep.status = o.status;
@@ -1241,7 +1521,10 @@ app.post('/api/devices/:id/ping', async (req, res) => {
     const cfg = await monitorConfig();
     const result = await pingHost(device.ip_address, cfg.timeoutMs);
     // อยู่ในสถานะที่หยุด ping (เช่น maintenance) หรือปิด monitor — แสดงผลอย่างเดียว ไม่เปลี่ยนสถานะ
-    if (!(await pausedStatusKeys()).has(device.status) && device.monitor_enabled) await applyPingResult(device, result, cfg);
+    if (!(await pausedStatusKeys()).has(device.status) && device.monitor_enabled) {
+      await applyPingResult(device, result, cfg);
+      flushAlerts();
+    }
     res.json({ ...result, device: await getDevice(device.id) });
   } catch (err) {
     res.status(500).json({ error: 'Ping failed' });
@@ -1259,9 +1542,34 @@ app.get('/api/monitor/status', async (req, res) => {
   }
 });
 
-app.post('/api/monitor/run', requireEditor, async (req, res) => {
-  await runMonitorCycle();
-  res.json({ ok: true, lastRunAt: monitorState.lastRunAt, checked: monitorState.checked });
+// เริ่ม ping ทั้งหมดแบบเบื้องหลัง แล้วตอบทันที — หน้าเว็บติดตามผลจาก /api/monitor/progress
+// ถ้ามีรอบอัตโนมัติกำลังวิ่งอยู่ จะไม่เริ่มซ้ำ (alreadyRunning) ให้ติดตามรอบนั้นแทน
+app.post('/api/monitor/run', requireEditor, (req, res) => {
+  const alreadyRunning = monitorState.running;
+  if (!alreadyRunning) runMonitorCycle('manual').catch(() => {});
+  // runMonitorCycle ตั้ง runId แบบ async — รอให้เริ่มก่อนตอบ (สูงสุด ~2 วินาที)
+  const before = monitorProgress.runId;
+  const startedAt = Date.now();
+  const wait = () => {
+    if (alreadyRunning || monitorProgress.runId !== before || !monitorState.running || Date.now() - startedAt > 2000) {
+      return res.json({ ok: true, alreadyRunning, runId: monitorProgress.runId });
+    }
+    setTimeout(wait, 20);
+  };
+  wait();
+});
+
+// ความคืบหน้า + log ใหม่ตั้งแต่ seq ที่ส่งมา (since)
+app.get('/api/monitor/progress', requireEditor, (req, res) => {
+  const p = monitorProgress;
+  const since = Number(req.query.since) || 0;
+  const runId = Number(req.query.runId) || 0;
+  // ถ้าเป็นรอบใหม่ (runId ไม่ตรง) ส่ง log ทั้งหมดของรอบนี้
+  const entries = runId === p.runId ? p.entries.filter((e) => e.seq > since) : p.entries;
+  res.json({
+    runId: p.runId, source: p.source, running: p.running, startedAt: p.startedAt, finishedAt: p.finishedAt,
+    total: p.total, done: p.done, counts: p.counts, changed: p.changed, note: p.note, entries,
+  });
 });
 
 // ---------- catalog: ประเภท / สถานะ / โซน ----------
@@ -1338,7 +1646,8 @@ app.post('/api/maps', requireAdmin, uploadImageField, async (req, res) => {
     const map = await saveMap({
       map_id: (req.body.map_id || crypto.randomUUID()).toString().trim(),
       map_name: (req.body.map_name || req.file.originalname).toString().trim(),
-      image_url: `/api/uploads/${filename}`
+      image_url: `/api/uploads/${filename}`,
+      floor: (req.body.floor || '').toString().trim().slice(0, 50) || null
     });
     res.status(201).json(map);
   } catch (err) {
@@ -1347,16 +1656,18 @@ app.post('/api/maps', requireAdmin, uploadImageField, async (req, res) => {
   }
 });
 
-// เปลี่ยนชื่อแผนผัง
+// แก้ไขแผนผัง (ชื่อ / ชั้น)
 app.put('/api/maps/:id', requireAdmin, async (req, res) => {
   try {
     const maps = await listMaps();
     const existing = maps.find((m) => m.map_id === req.params.id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
+    const body = req.body || {};
     const map = await saveMap({
       map_id: existing.map_id,
-      map_name: String((req.body || {}).map_name || existing.map_name).trim(),
-      image_url: existing.image_url
+      map_name: String(body.map_name || existing.map_name).trim(),
+      image_url: existing.image_url,
+      floor: body.floor === undefined ? (existing.floor ?? null) : (String(body.floor).trim().slice(0, 50) || null)
     });
     res.json(map);
   } catch (err) {
@@ -1368,6 +1679,41 @@ app.delete('/api/maps/:id', requireAdmin, async (req, res) => {
   try {
     await deleteMapRow(req.params.id);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// เปลี่ยนรูปแผนผังเดิม (multipart field "image") — map_id/ชื่อ/ชั้นคงเดิม อุปกรณ์และตำแหน่งอยู่ครบ
+app.post('/api/maps/:id/image', requireAdmin, uploadImageField, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'ต้องแนบไฟล์รูป (field "image")' });
+    const existing = (await listMaps()).find((m) => m.map_id === req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const filename = `map-${crypto.randomUUID()}${ext}`;
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), req.file.buffer);
+    // จำ URL เก่าก่อน saveMap (โหมด memory แก้ object เดิมในที่)
+    const oldUrl = existing.image_url;
+    const map = await saveMap({
+      map_id: existing.map_id,
+      map_name: existing.map_name,
+      image_url: `/api/uploads/${filename}`,
+      floor: existing.floor ?? null
+    });
+    // ลบรูปเก่าที่อยู่ใน uploads ของเรา (ไม่แตะ URL ภายนอก)
+    if (oldUrl && oldUrl.startsWith('/api/uploads/')) {
+      const oldPath = path.join(UPLOADS_DIR, path.basename(oldUrl));
+      if (oldPath !== path.join(UPLOADS_DIR, filename)) {
+        try {
+          fs.rmSync(oldPath, { force: true });
+        } catch {
+          /* ลบไม่ได้ก็ข้ามไป */
+        }
+      }
+    }
+    res.json(map);
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
   }
@@ -1478,13 +1824,59 @@ app.post('/api/settings', requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- telegram ----------
+// token เป็นความลับ: ไม่ส่งกลับ — บอกแค่ว่าตั้งไว้แล้วหรือยัง + 4 ตัวท้าย
+app.get('/api/telegram', requireAdmin, async (req, res) => {
+  try {
+    const cfg = await telegramConfig();
+    res.json({
+      enabled: cfg.enabled,
+      chatId: cfg.chatId,
+      notifyRecovery: cfg.notifyRecovery,
+      tokenSet: !!cfg.token,
+      tokenHint: cfg.token ? `…${cfg.token.slice(-4)}` : '',
+      lastSentAt: telegramState.lastSentAt,
+      lastError: telegramState.lastError,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.put('/api/telegram', requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const chatId = b.chatId !== undefined ? String(b.chatId).trim() : undefined;
+    const token = b.token !== undefined ? String(b.token).trim() : undefined;
+    if (chatId && !/^(-?\d{1,20}|@[A-Za-z0-9_]{5,32})$/.test(chatId)) return res.status(400).json({ error: 'Chat ID ต้องเป็นตัวเลข (เช่น -1001234567890) หรือ @ชื่อช่อง' });
+    if (token && !TOKEN_RE.test(token)) return res.status(400).json({ error: 'รูปแบบ Bot Token ไม่ถูกต้อง (เช่น 123456789:AA...)' });
+    if (b.enabled !== undefined) await setSetting('TELEGRAM_ENABLED', b.enabled ? 'TRUE' : 'FALSE');
+    if (b.notifyRecovery !== undefined) await setSetting('TELEGRAM_NOTIFY_RECOVERY', b.notifyRecovery ? 'TRUE' : 'FALSE');
+    if (chatId !== undefined) await setSetting('TELEGRAM_CHAT_ID', chatId);
+    if (token !== undefined) await setSetting('TELEGRAM_BOT_TOKEN', token); // ส่งมาเฉพาะตอนเปลี่ยน ('' = ลบ)
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ส่งข้อความทดสอบ — ใช้ token/chatId ที่ส่งมา (ทดสอบก่อนบันทึก) หรือค่าที่บันทึกไว้
+app.post('/api/telegram/test', requireAdmin, async (req, res) => {
+  try {
+    const saved = await telegramConfig();
+    const token = String(req.body?.token || '').trim() || saved.token;
+    const chatId = String(req.body?.chatId || '').trim() || saved.chatId;
+    await sendTelegram(`✅ <b>ทดสอบการแจ้งเตือน</b>\nระบบ Monitoring Device เชื่อมต่อ Telegram สำเร็จ\n🕒 ${escHtml(thaiTime())}`, { token, chatId });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // ========== START ==========
 const PORT = process.env.PORT || 5000;
 initDB()
   .then(() => {
-    // ล้างค่า Telegram เดิม (เอาฟีเจอร์แจ้งเตือนออกแล้ว)
-    if (!USE_DB) Object.keys(memSettings).filter((k) => k.startsWith('TELEGRAM_')).forEach((k) => delete memSettings[k]);
-    else query("DELETE FROM settings WHERE `key` LIKE 'TELEGRAM\_%'").catch(() => {});
     app.listen(PORT, () => console.log(`Monitoring Device backend listening on port ${PORT} (mode: ${USE_DB ? 'mariadb' : 'memory'})`));
     runMonitorCycle().finally(scheduleMonitor);
     if (process.env.XLSX_WATCH !== 'off') startXlsxWatch();

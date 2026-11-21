@@ -12,6 +12,7 @@ export const actionLabel: Record<LogAction, string> = {
   up: '🟢 Online',
   imported: '📥 นำเข้า',
   ip_table: '🗂️ TABLE_IP',
+  snapshot: '📸 สแนปช็อต',
 };
 
 type LogFilter = '' | 'status' | 'edit';

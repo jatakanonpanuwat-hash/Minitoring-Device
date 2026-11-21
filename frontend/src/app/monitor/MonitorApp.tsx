@@ -20,18 +20,19 @@ import {
   getSettings,
   pingDevice,
   renameMap,
-  runMonitorNow,
+  replaceMapImage,
   saveSettings,
   updateDevice,
   uploadMap,
 } from '../utils/monitorClient';
+import { ConfirmProvider, confirmDialog } from '../components/ui/confirm';
+import { AddDeviceModal, type NewDeviceInput } from './AddDeviceModal';
 import { BottomBar } from './BottomBar';
 import { DashboardPage } from './DashboardPage';
 import { DeviceModal } from './DeviceModal';
 import { DeviceTablePage } from './DeviceTablePage';
 import { LogsPage } from './LogsPage';
 import { CatalogModal } from './CatalogModal';
-import { IpTablePage } from './IpTablePage';
 import { CatalogContext, EMPTY_CATALOG } from './catalog';
 import { Rail, type PageKind } from './Rail';
 import { SlidePanel } from './SlidePanel';
@@ -198,7 +199,7 @@ export function MonitorApp() {
     setPage('settings');
   };
 
-  // ไปที่อุปกรณ์บนแผนผัง (จาก TABLE_IP) — ล้างตัวกรองให้เห็นแน่ ๆ, สลับแผนผัง, ไฮไลต์, ซูมเข้า
+  // ไปที่อุปกรณ์บนแผนผัง — ล้างตัวกรองให้เห็นแน่ ๆ, สลับแผนผัง, ไฮไลต์, ซูมเข้า
   const focusDevice = (d: Device) => {
     setSearch('');
     setStatusFilter('');
@@ -237,6 +238,9 @@ export function MonitorApp() {
   ): Promise<string | null> => {
     if (!activeMap) return 'ยังไม่ได้เลือกแผนผัง';
     const payload = { ...data, map_id: activeMap.map_id, x_percent: x, y_percent: y };
+    // แผนผังระบุชั้นไว้ + ฟอร์มไม่ได้กรอกชั้น = ใส่ชั้นตามแผนผังให้อัตโนมัติ
+    if (!payload.floor && activeMap.floor) payload.floor = activeMap.floor;
+    if (!(await confirmDialog({ title: 'บันทึกอุปกรณ์ใหม่', message: `บันทึกอุปกรณ์ ${data.name} บนแผนผัง ${activeMap.map_name}?`, confirmLabel: 'บันทึก' }))) return null;
     try {
       const saved = await createDevice({ ...payload, name: data.name || '' }, secret);
       setMode('view');
@@ -284,9 +288,14 @@ export function MonitorApp() {
 
   const handleConfirmPlaceExisting = async (id: string, x: number, y: number): Promise<string | null> => {
     if (!activeMap) return 'ยังไม่ได้เลือกแผนผัง';
+    const placing = devices.find((d) => d.id === id);
+    if (!(await confirmDialog({ title: 'วางอุปกรณ์', message: `วาง ${placing?.name || ''} ที่จุดนี้${activeMap.floor ? ` (ชั้น ${activeMap.floor})` : ''}?`, confirmLabel: 'วาง' }))) return null;
     try {
-      const saved = await updateDevice(id, { map_id: activeMap.map_id, x_percent: x, y_percent: y }, secret);
-      pushUndo(id, 'วางตำแหน่ง', ['map_id', 'x_percent', 'y_percent']);
+      // วางลงแผนผังที่ระบุชั้นไว้ = ย้ายชั้นอุปกรณ์ตามไปด้วย (แผนผังไม่ระบุชั้น = คงชั้นเดิม)
+      const patch: Partial<Device> = { map_id: activeMap.map_id, x_percent: x, y_percent: y };
+      if (activeMap.floor) patch.floor = activeMap.floor;
+      const saved = await updateDevice(id, patch, secret);
+      pushUndo(id, 'วางตำแหน่ง', ['map_id', 'x_percent', 'y_percent', 'floor']);
       changeMode('view');
       await refreshDevices();
       focusDevice(saved);
@@ -421,7 +430,54 @@ export function MonitorApp() {
     refreshDevices();
   };
 
+  // ไม่แสดงบนแผนผัง (ล้างตำแหน่ง) / ยกเลิก — หน้าต่างอุปกรณ์ยังเปิดอยู่ แสดงสถานะใหม่
+  const handleSetHidden = async (id: string, hidden: boolean) => {
+    const target = devices.find((d) => d.id === id);
+    const placed = target?.x_percent != null && target?.y_percent != null;
+    const ok = await confirmDialog(
+      hidden
+        ? {
+            title: placed ? 'เอาออกจากแผนผัง' : 'ไม่ต้องวางบนแผนผัง',
+            message: `${placed ? 'เอาหมุด' : 'ตั้งค่า'} ${target?.name || ''} ${placed ? 'ออกจากแผนผัง' : 'เป็น "ไม่แสดงบนแผนผัง"'}?\nอุปกรณ์ยังอยู่ในระบบ ถูก ping และแจ้งเตือนตามปกติ — วางกลับได้ภายหลัง`,
+            confirmLabel: placed ? 'เอาออก' : 'ยืนยัน',
+            danger: placed,
+          }
+        : { title: 'ยกเลิก "ไม่แสดงบนแผนผัง"', message: `${target?.name || ''} จะกลับไปนับเป็น "ยังไม่วาง"?`, confirmLabel: 'ยืนยัน' }
+    );
+    if (!ok) return;
+    try {
+      const updated = await updateDevice(id, { hide_on_map: hidden }, secret);
+      // หน้าต่างอุปกรณ์ตัวนี้เปิดอยู่ → แสดงสถานะใหม่ (กดจากหมุดบนแผนผังจะไม่เปิดหน้าต่าง)
+      setSelected((cur) => (cur?.id === id ? updated : cur));
+      setModalError('');
+      refreshDevices();
+    } catch (e) {
+      const msg = `บันทึกไม่สำเร็จ — ${(e as Error).message}`;
+      if (modal) setModalError(msg);
+      else window.alert(msg);
+    }
+  };
+
+  // เพิ่มอุปกรณ์จากหน้ารายการ (ไม่ต้องคลิกบนแผนผัง)
+  const [addOpen, setAddOpen] = useState(false);
+  const handleAddDevice = async ({ data, placeAfter }: NewDeviceInput): Promise<string | null> => {
+    try {
+      const saved = await createDevice(data, secret);
+      setAddOpen(false);
+      await refreshDevices();
+      setTimeout(refreshDevices, 2500); // backend ping ตัวใหม่ทันที — ดึงอีกรอบให้เห็นสถานะ
+      if (placeAfter) startPlacing(saved);
+      else openDevice(saved);
+      return null;
+    } catch (e) {
+      const msg = (e as Error).message;
+      return /401|403/.test(msg) ? 'บันทึกไม่สำเร็จ — ไม่มีสิทธิ์ — กรุณาเข้าสู่ระบบ' : `บันทึกไม่สำเร็จ — ${msg}`;
+    }
+  };
+
   const handleSaveDevice =async (id: string, data: Partial<Device>) => {
+    const target = devices.find((d) => d.id === id);
+    if (!(await confirmDialog({ title: 'บันทึกการแก้ไข', message: `บันทึกการแก้ไขอุปกรณ์ ${target?.name || ''}?`, confirmLabel: 'บันทึก' }))) return;
     try {
       await updateDevice(id, data, secret);
       setModal(null);
@@ -435,6 +491,7 @@ export function MonitorApp() {
   const handleDeleteDevice = async (id: string) => {
     // เก็บข้อมูลก่อนลบ ไว้สร้างคืนเมื่อกด "เลิกทำ"
     const snapshot = savedRef.current.find((d) => d.id === id) || devices.find((d) => d.id === id);
+    if (!(await confirmDialog({ title: 'ลบอุปกรณ์', message: `ลบอุปกรณ์ ${snapshot?.name || ''}?\n(กด "เลิกทำ" ได้หลังลบ)`, confirmLabel: 'ลบ', danger: true }))) return;
     try {
       await deleteDevice(id, secret);
       setModal(null);
@@ -458,27 +515,58 @@ export function MonitorApp() {
   };
 
   // ---------- map actions ----------
-  const handleUploadMap = async (file: File, name: string) => {
+  const handleUploadMap = async (file: File, name: string, floor: string) => {
+    if (!(await confirmDialog({ title: 'อัปโหลดแผนผัง', message: `อัปโหลดแผนผัง ${name}${floor ? ` (ชั้น ${floor})` : ''}?`, confirmLabel: 'อัปโหลด' }))) return;
     try {
-      const map = await uploadMap(file, name, secret);
+      const map = await uploadMap(file, name, secret, floor);
       await refreshMaps();
       setActiveMapId(map.map_id);
       setAdminResult('');
+      showToast(`อัปโหลดแผนผัง ${map.map_name} แล้ว${map.floor ? ` (ชั้น ${map.floor})` : ''}`, false);
     } catch (e) {
-      setAdminResult(`อัปโหลดแผนผังไม่สำเร็จ — ${(e as Error).message}`);
+      const msg = `อัปโหลดแผนผังไม่สำเร็จ — ${(e as Error).message}`;
+      setAdminResult(msg);
+      showToast(msg, false, true);
     }
   };
 
-  const handleRenameMap = async (id: string, name: string) => {
+  const handleReplaceMapImage = async (id: string, file: File) => {
+    const target = maps.find((m) => m.map_id === id);
+    if (!target) return;
+    if (!(await confirmDialog({ title: 'เปลี่ยนรูปแผนผัง', message: `เปลี่ยนรูปแผนผัง ${target.map_name}?\nอุปกรณ์และตำแหน่งบนแผนผังคงเดิม (รูปควรมีขนาด/สัดส่วนเดียวกับรูปเดิม)`, confirmLabel: 'เปลี่ยนรูป', danger: true }))) return;
     try {
-      await renameMap(id, name, secret);
+      await replaceMapImage(id, file, secret);
       refreshMaps();
+      showToast(`เปลี่ยนรูปแผนผัง ${target.map_name} แล้ว`, false);
+    } catch (e) {
+      const msg = `เปลี่ยนรูปแผนผังไม่สำเร็จ — ${(e as Error).message}`;
+      setAdminResult(msg);
+      showToast(msg, false, true);
+    }
+  };
+
+  const handleRenameMap = async (id: string, name: string, floor: string) => {
+    if (!(await confirmDialog({ title: 'บันทึกแผนผัง', message: `บันทึกแผนผัง ${name}${floor ? ` (ชั้น ${floor})` : ''}?`, confirmLabel: 'บันทึก' }))) return;
+    try {
+      const map = await renameMap(id, name, secret, floor);
+      refreshMaps();
+      showToast(`บันทึกแผนผัง ${map.map_name} แล้ว${map.floor ? ` (ชั้น ${map.floor})` : ''}`, false);
     } catch {
-      setAdminResult('เปลี่ยนชื่อไม่สำเร็จ — ไม่มีสิทธิ์หรือยังไม่ได้เข้าสู่ระบบ');
+      const msg = 'บันทึกแผนผังไม่สำเร็จ — ไม่มีสิทธิ์หรือยังไม่ได้เข้าสู่ระบบ';
+      setAdminResult(msg);
+      showToast(msg, false, true);
     }
   };
 
   const handleDeleteMap = async (id: string) => {
+    const target = maps.find((m) => m.map_id === id);
+    const n = devices.filter((d) => d.map_id === id).length;
+    if (!(await confirmDialog({
+      title: 'ลบแผนผัง',
+      message: `ลบแผนผัง ${target?.map_name || ''}?` + (n > 0 ? `\nมีอุปกรณ์บนแผนผังนี้ ${n} เครื่อง — อุปกรณ์จะไม่ถูกลบ แต่ต้องวางใหม่` : ''),
+      confirmLabel: 'ลบ',
+      danger: true,
+    }))) return;
     try {
       await deleteMap(id, secret);
       if (id === activeMapId) setActiveMapId('');
@@ -499,6 +587,7 @@ export function MonitorApp() {
   };
 
   const handleSaveMonitor = async () => {
+    if (!(await confirmDialog({ title: 'บันทึกการตั้งค่า', message: 'บันทึกการตั้งค่า Monitor?', confirmLabel: 'บันทึก' }))) return;
     try {
       await saveSettings(
         {
@@ -517,15 +606,9 @@ export function MonitorApp() {
     }
   };
 
-  const handleRunMonitor = async () => {
-    try {
-      setMonitorResult('กำลัง ping ทุกอุปกรณ์...');
-      await runMonitorNow(secret);
-      setMonitorResult('ping ครบแล้ว');
-      refreshDevices();
-    } catch {
-      setMonitorResult('สั่ง ping ไม่สำเร็จ — ไม่มีสิทธิ์หรือยังไม่ได้เข้าสู่ระบบ');
-    }
+  // ปุ่ม/ความคืบหน้า "Ping ทั้งหมด" อยู่ใน MonitorRunLog — ครบรอบแล้วโหลดสถานะใหม่
+  const handleMonitorRunDone = () => {
+    refreshDevices();
   };
 
   // ---------- login / logout ----------
@@ -581,6 +664,8 @@ export function MonitorApp() {
     <AuthContext.Provider value={authInfo}>
     <CatalogContext.Provider value={catalog}>
     <div className="cctv-app">
+    {/* ConfirmProvider อยู่ใน .cctv-app เพื่อให้ popup ได้สไตล์ .cctv-app .modal / .btn */}
+    <ConfirmProvider>
       <TopBar
         search={search}
         onSearch={(v) => {
@@ -599,7 +684,6 @@ export function MonitorApp() {
         onPanel={openPanel}
         onOpenTable={() => togglePage('table')}
         onOpenLogs={() => togglePage('logs')}
-        onOpenIpTable={() => togglePage('iptable')}
         page={page}
         onOpenDashboard={() => togglePage('dashboard')}
         onOpenSettings={() => togglePage('settings')}
@@ -607,8 +691,6 @@ export function MonitorApp() {
       <main className="main-area">
         {page === 'dashboard' ? (
           <DashboardPage devices={devices} monitor={monitorStatus} onClose={() => setPage('map')} onSelect={openDevice} />
-        ) : page === 'iptable' ? (
-          <IpTablePage devices={devices} secret={secret} onFocusDevice={focusDevice} onClose={() => setPage('map')} />
         ) : page === 'settings' ? (
           <SettingsPage
             onClose={() => setPage('map')}
@@ -620,7 +702,7 @@ export function MonitorApp() {
             monitorForm={monitorForm}
             onMonitorForm={setMonitorForm}
             onSaveMonitor={handleSaveMonitor}
-            onRunMonitor={handleRunMonitor}
+            onMonitorRunDone={handleMonitorRunDone}
             monitorResult={monitorResult}
             ipAuto={ipAuto}
             onIpAuto={handleSaveIpAuto}
@@ -638,9 +720,11 @@ export function MonitorApp() {
             devices={filtered}
             totalAll={devices.length}
             filtered={!!(search.trim() || statusFilter || typeFilter || zoneFilter)}
+            secret={secret}
             onClose={() => setPage('map')}
             onSelect={openDevice}
             onPlace={startPlacing}
+            onAdd={() => setAddOpen(true)}
           />
         ) : (
         <>
@@ -663,6 +747,7 @@ export function MonitorApp() {
           onSelectMap={setActiveMapId}
           onUploadMap={handleUploadMap}
           onRenameMap={handleRenameMap}
+          onReplaceMapImage={handleReplaceMapImage}
           onDeleteMap={handleDeleteMap}
           authRequired={authRequired}
           onPlace={startPlacing}
@@ -670,6 +755,7 @@ export function MonitorApp() {
         <Viewer
           map={activeMap}
           devices={visibleOnMap}
+          allDevices={devices}
           mode={mode}
           selectedId={selected?.id || null}
           onViewChange={setZoom}
@@ -683,6 +769,8 @@ export function MonitorApp() {
           editCount={editCount}
           placing={placingDevice}
           onConfirmPlaceExisting={handleConfirmPlaceExisting}
+          onAddUnplaced={() => setAddOpen(true)}
+          onRemoveFromMap={(d) => handleSetHidden(d.id, true)}
           focus={focus}
         />
         </>
@@ -735,6 +823,8 @@ export function MonitorApp() {
           onPing={handlePing}
           onPlace={() => startPlacing(selected)}
           error={modalError}
+          allDevices={devices}
+          onSetHidden={(hidden) => handleSetHidden(selected.id, hidden)}
         />
       )}
       {loginOpen && (
@@ -746,7 +836,11 @@ export function MonitorApp() {
           onClose={() => setLoginOpen(null)}
         />
       )}
+      {addOpen && (
+        <AddDeviceModal allDevices={devices} hasMaps={maps.length > 0} onClose={() => setAddOpen(false)} onSubmit={handleAddDevice} />
+      )}
       {pwOpen && <ChangePasswordModal onDone={onSession} onClose={() => setPwOpen(false)} />}
+    </ConfirmProvider>
     </div>
     </CatalogContext.Provider>
     </AuthContext.Provider>

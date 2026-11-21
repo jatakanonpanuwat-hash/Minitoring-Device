@@ -1,5 +1,6 @@
 import type {
-  AppSettings, Catalog, CatalogItem, CatalogKind, Device, IpRow, IpUpdate, IpYearsInfo, LogEntry, MapItem, MonitorStatus,
+  AppSettings, Catalog, CatalogItem, CatalogKind, Device, DeviceSnapshot, DeviceSnapshotYearsInfo,
+  IpRow, IpUpdate, IpYearsInfo, LogEntry, MapItem, MonitorStatus,
 } from '../types/monitor';
 
 const BASE = import.meta.env.BASE_URL;
@@ -150,13 +151,58 @@ export async function pingDevice(id: string): Promise<{ alive: boolean; latency:
   return request(`api/devices/${id}/ping`, { method: 'POST' });
 }
 
+// ---------- สแนปช็อตรายการอุปกรณ์รายปี ----------
+export async function getDeviceSnapshotYears(): Promise<DeviceSnapshotYearsInfo> {
+  return request<DeviceSnapshotYearsInfo>('api/devices/snapshots/years');
+}
+
+export async function getDeviceSnapshot(year: number): Promise<DeviceSnapshot> {
+  return request<DeviceSnapshot>(`api/devices/snapshots?year=${year}`);
+}
+
+export async function saveDeviceSnapshot(year: number, adminSecret: string): Promise<{ year: number; count: number; created_at: string }> {
+  return request('api/devices/snapshots', { method: 'POST', headers: adminHeaders(adminSecret), body: JSON.stringify({ year }) });
+}
+
 // ---------- monitor ----------
 export async function getMonitorStatus(): Promise<MonitorStatus> {
   return request<MonitorStatus>('api/monitor/status');
 }
 
-export async function runMonitorNow(adminSecret: string): Promise<void> {
-  await request('api/monitor/run', { method: 'POST', headers: { 'x-admin-secret': adminSecret } });
+/** เริ่ม ping ทั้งหมด (เบื้องหลัง) — ติดตามผลด้วย getMonitorProgress */
+export async function runMonitorNow(adminSecret: string): Promise<{ ok: boolean; alreadyRunning: boolean; runId: number }> {
+  return request('api/monitor/run', { method: 'POST', headers: { 'x-admin-secret': adminSecret } });
+}
+
+export interface MonitorProgressEntry {
+  seq: number;
+  at: string;
+  id: string;
+  name: string;
+  ip: string;
+  status: string; // online | warning | offline | error
+  prev: string;
+  changed: boolean;
+  latency: number | null;
+  error: string | null;
+}
+
+export interface MonitorProgress {
+  runId: number;
+  source: 'auto' | 'manual' | null;
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  total: number;
+  done: number;
+  counts: { online: number; warning: number; offline: number; error: number };
+  changed: number;
+  note: string | null;
+  entries: MonitorProgressEntry[];
+}
+
+export async function getMonitorProgress(runId: number, since: number): Promise<MonitorProgress> {
+  return request<MonitorProgress>(`api/monitor/progress?runId=${runId}&since=${since}`);
 }
 
 // ---------- catalog (ประเภท / สถานะ / โซน) ----------
@@ -229,10 +275,11 @@ export async function getMaps(): Promise<MapItem[]> {
   return request<MapItem[]>('api/maps');
 }
 
-export async function uploadMap(file: File, mapName: string, adminSecret: string): Promise<MapItem> {
+export async function uploadMap(file: File, mapName: string, adminSecret: string, floor?: string): Promise<MapItem> {
   const form = new FormData();
   form.append('image', file);
   form.append('map_name', mapName);
+  if (floor) form.append('floor', floor);
   return request<MapItem>('api/maps', {
     method: 'POST',
     headers: { 'x-admin-secret': adminSecret },
@@ -240,11 +287,21 @@ export async function uploadMap(file: File, mapName: string, adminSecret: string
   });
 }
 
-export async function renameMap(mapId: string, mapName: string, adminSecret: string): Promise<MapItem> {
+export async function replaceMapImage(mapId: string, file: File, adminSecret: string): Promise<MapItem> {
+  const form = new FormData();
+  form.append('image', file);
+  return request<MapItem>(`api/maps/${mapId}/image`, {
+    method: 'POST',
+    headers: { 'x-admin-secret': adminSecret },
+    body: form,
+  });
+}
+
+export async function renameMap(mapId: string, mapName: string, adminSecret: string, floor?: string): Promise<MapItem> {
   return request<MapItem>(`api/maps/${mapId}`, {
     method: 'PUT',
     headers: adminHeaders(adminSecret),
-    body: JSON.stringify({ map_name: mapName }),
+    body: JSON.stringify(floor === undefined ? { map_name: mapName } : { map_name: mapName, floor }),
   });
 }
 
@@ -333,5 +390,38 @@ export async function importXlsx(
     method: 'POST',
     headers: { 'x-admin-secret': adminSecret },
     body: form,
+  });
+}
+
+// ---------- แจ้งเตือน Telegram ----------
+export interface TelegramConfig {
+  enabled: boolean;
+  chatId: string;
+  notifyRecovery: boolean;
+  /** ตั้ง token ไว้แล้วหรือยัง (server ไม่ส่ง token จริงกลับมา) */
+  tokenSet: boolean;
+  tokenHint: string;
+  lastSentAt: string | null;
+  lastError: string | null;
+}
+
+export async function getTelegramConfig(): Promise<TelegramConfig> {
+  return request<TelegramConfig>('api/telegram');
+}
+
+/** token: ส่งเฉพาะตอนเปลี่ยน ('' = ลบ, undefined = คงเดิม) */
+export async function saveTelegramConfig(data: { enabled?: boolean; chatId?: string; notifyRecovery?: boolean; token?: string }): Promise<void> {
+  await request<{ ok: boolean }>('api/telegram', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function testTelegram(data: { token?: string; chatId?: string }): Promise<void> {
+  await request<{ ok: boolean }>('api/telegram/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   });
 }

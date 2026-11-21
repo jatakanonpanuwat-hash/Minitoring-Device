@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, Plus, Trash2, UserRound } from 'lucide-react';
+import { confirmDialog } from '../components/ui/confirm';
 import { formatAgo } from '../types/monitor';
 import { createUser, deleteUser, listUsers, updateUser, type AuthUser, type Role } from '../utils/monitorClient';
 import { roleLabel, useAuth } from './auth';
@@ -45,6 +46,7 @@ export function UsersSection() {
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!(await confirmDialog({ title: 'เพิ่มผู้ใช้', message: `เพิ่มผู้ใช้ ${form.username.trim()} (${roleLabel(form.role)})?`, confirmLabel: 'เพิ่ม' }))) return;
     const done = await run(
       () =>
         createUser({
@@ -110,8 +112,8 @@ export function UsersSection() {
                 className="mini-btn danger"
                 title={isMe ? 'ลบบัญชีตัวเองไม่ได้' : 'ลบผู้ใช้'}
                 disabled={isMe || lastAdmin}
-                onClick={() => {
-                  if (window.confirm(`ลบผู้ใช้ ${u.display_name} (@${u.username})?`)) run(() => deleteUser(u.id), `ลบ ${u.username} แล้ว`);
+                onClick={async () => {
+                  if (await confirmDialog({ title: 'ลบผู้ใช้', message: `ลบผู้ใช้ ${u.display_name} (@${u.username})?`, confirmLabel: 'ลบ', danger: true })) run(() => deleteUser(u.id), `ลบ ${u.username} แล้ว`);
                 }}
               >
                 <Trash2 />
@@ -121,6 +123,7 @@ export function UsersSection() {
                   className="user-reset"
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    if (!(await confirmDialog({ title: 'ตั้งรหัสผ่านใหม่', message: `ตั้งรหัสผ่านใหม่ให้ ${u.username}?\n(เจ้าของบัญชีต้อง login ใหม่)`, confirmLabel: 'บันทึก' }))) return;
                     if (await run(() => updateUser(u.id, { password: resetPw }), `ตั้งรหัสผ่านใหม่ให้ ${u.username} แล้ว — ต้อง login ใหม่`)) setResetFor(null);
                   }}
                 >
