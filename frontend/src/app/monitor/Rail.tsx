@@ -60,10 +60,6 @@ export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, page, onOpen
         <span>Set</span>
       </button>
       )}
-      <div className="rail-spacer" />
-      <div className="rail-avatar" title="Monitoring Device">
-        MD
-      </div>
     </nav>
   );
 }

@@ -296,23 +296,6 @@
   width: 20px;
   height: 20px;
 }
-.cctv-app .rail-spacer {
-  flex: 1;
-}
-.cctv-app .rail-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb, #06b6d4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: 12px;
-  margin-top: 8px;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
-}
 
 /* ============ MAIN AREA ============ */
 .cctv-app .main-area {
