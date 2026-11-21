@@ -735,6 +735,7 @@ const SETTING_DEFAULTS = {
   MONITOR_TIMEOUT_MS: '1000',   // รอ reply นานสุดต่อครั้ง
   MONITOR_FAIL_THRESHOLD: '2',  // ping ไม่ผ่านติดกันกี่รอบถึงนับว่า offline
   MONITOR_WARN_MS: '200',       // latency เกินนี้ = warning
+  MONITOR_TYPES: '',            // ประเภทอุปกรณ์ที่ ping (key คั่นด้วย , ) — ว่าง = ทุกประเภท
   IPTABLE_AUTO_ADD: 'TRUE',     // เพิ่ม/แก้กล้อง → ซิงก์ IP เข้า TABLE_IP ปีปัจจุบัน
   IPTABLE_AUTO_REMOVE: 'soft',  // ลบกล้อง → soft (ใส่สถานะ DELETED) / hard (ลบแถว) / off
   XLSX_AUTO_SYNC: 'TRUE',       // เฝ้าไฟล์ Excel ในโปรเจกต์ เปลี่ยนเมื่อไหร่นำเข้าใหม่
@@ -1042,8 +1043,21 @@ async function monitorConfig() {
     intervalSec: await getIntSetting('MONITOR_INTERVAL_SEC', 10, 3600),
     timeoutMs: await getIntSetting('MONITOR_TIMEOUT_MS', 200, 10000),
     failThreshold: await getIntSetting('MONITOR_FAIL_THRESHOLD', 1, 20),
-    warnMs: await getIntSetting('MONITOR_WARN_MS', 1, 10000)
+    warnMs: await getIntSetting('MONITOR_WARN_MS', 1, 10000),
+    types: parseMonitorTypes(await getSetting('MONITOR_TYPES'))
   };
+}
+
+// '' = ทุกประเภท (คืน null), นอกนั้นเป็น Set ของ key ประเภทที่ให้ ping
+function parseMonitorTypes(raw) {
+  const keys = String(raw || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return keys.length ? new Set(keys) : null;
+}
+
+// อุปกรณ์นี้ควรถูก ping อัตโนมัติไหม: เปิด monitor + มี IP + ไม่อยู่ในสถานะหยุด ping + ประเภทอยู่ในรายการที่เลือก
+function shouldMonitor(device, paused, cfg) {
+  return !!(device.monitor_enabled && device.ip_address && !paused.has(device.status) &&
+    (!cfg.types || cfg.types.has(device.device_type)));
 }
 
 async function checkDevice(device, cfg) {
@@ -1074,7 +1088,7 @@ function recordProgress(device, after, err) {
   if (p.entries.length > PROGRESS_MAX_ENTRIES) p.entries.splice(0, p.entries.length - PROGRESS_MAX_ENTRIES);
 }
 
-// ping ทุกเครื่องที่เปิด monitor + มี IP + ไม่อยู่ในสถานะ maintenance (ทำพร้อมกันทีละ 20 เครื่อง)
+// ping ทุกเครื่องที่เปิด monitor + มี IP + ไม่อยู่ในสถานะ maintenance + ประเภทที่เลือก (ทำพร้อมกันทีละ 20 เครื่อง)
 // source: 'auto' = ตามรอบเวลา (ข้ามถ้าปิด monitor), 'manual' = กด "Ping ทั้งหมดตอนนี้" (ping แม้ปิด monitor อัตโนมัติ)
 async function runMonitorCycle(source = 'auto') {
   if (monitorState.running) return false;
@@ -1085,7 +1099,7 @@ async function runMonitorCycle(source = 'auto') {
     const cfg = await monitorConfig();
     if (!cfg.enabled && source !== 'manual') return false;
     const paused = await pausedStatusKeys();
-    const targets = (await listDevices()).filter((d) => d.monitor_enabled && d.ip_address && !paused.has(d.status));
+    const targets = (await listDevices()).filter((d) => shouldMonitor(d, paused, cfg));
     Object.assign(p, {
       runId: p.runId + 1, source, running: true, startedAt: new Date().toISOString(), finishedAt: null,
       total: targets.length, done: 0, counts: { online: 0, warning: 0, offline: 0, error: 0 }, changed: 0,
@@ -1227,9 +1241,9 @@ app.post('/api/devices', requireEditor, async (req, res) => {
     await ipTable.onDeviceAdded(device, { name: req.body && req.body.employee_name });
     res.status(201).json(device);
     // ping ทันทีให้เห็นสถานะโดยไม่ต้องรอรอบถัดไป
-    if (device.monitor_enabled && device.ip_address && !(await pausedStatusKeys()).has(device.status)) {
-      monitorConfig().then((cfg) => checkDevice(device, cfg)).catch(() => {});
-    }
+    monitorConfig().then(async (cfg) => {
+      if (shouldMonitor(device, await pausedStatusKeys(), cfg)) await checkDevice(device, cfg);
+    }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
   }
@@ -1305,9 +1319,9 @@ app.post('/api/devices/:id/restore', requireEditor, async (req, res) => {
     // แถว TABLE_IP ที่ถูก soft-delete จะกลับมาใช้แถวเดิม
     await ipTable.onDeviceAdded(device, { name: req.body && req.body.employee_name });
     res.status(201).json(device);
-    if (device.monitor_enabled && device.ip_address && !(await pausedStatusKeys()).has(device.status)) {
-      monitorConfig().then((cfg) => checkDevice(device, cfg)).catch(() => {});
-    }
+    monitorConfig().then(async (cfg) => {
+      if (shouldMonitor(device, await pausedStatusKeys(), cfg)) await checkDevice(device, cfg);
+    }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
   }
@@ -1520,8 +1534,8 @@ app.post('/api/devices/:id/ping', async (req, res) => {
     if (!device.ip_address) return res.status(400).json({ error: 'อุปกรณ์นี้ยังไม่มี IP' });
     const cfg = await monitorConfig();
     const result = await pingHost(device.ip_address, cfg.timeoutMs);
-    // อยู่ในสถานะที่หยุด ping (เช่น maintenance) หรือปิด monitor — แสดงผลอย่างเดียว ไม่เปลี่ยนสถานะ
-    if (!(await pausedStatusKeys()).has(device.status) && device.monitor_enabled) {
+    // อยู่ในสถานะที่หยุด ping (เช่น maintenance), ปิด monitor หรือประเภทไม่ได้เลือกไว้ — แสดงผลอย่างเดียว ไม่เปลี่ยนสถานะ
+    if (shouldMonitor(device, await pausedStatusKeys(), cfg)) {
       await applyPingResult(device, result, cfg);
       flushAlerts();
     }
@@ -1535,7 +1549,7 @@ app.post('/api/devices/:id/ping', async (req, res) => {
 app.get('/api/monitor/status', async (req, res) => {
   try {
     const cfg = await monitorConfig();
-    res.json({ ...cfg, running: monitorState.running, lastRunAt: monitorState.lastRunAt,
+    res.json({ ...cfg, types: cfg.types ? [...cfg.types] : null, running: monitorState.running, lastRunAt: monitorState.lastRunAt,
       lastDurationMs: monitorState.lastDurationMs, checked: monitorState.checked });
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
@@ -1797,7 +1811,7 @@ app.post('/api/logs/import', requireAdmin, async (req, res) => {
 
 // ---------- settings ----------
 const PUBLIC_SETTINGS = ['MONITOR_ENABLED', 'MONITOR_INTERVAL_SEC',
-  'MONITOR_TIMEOUT_MS', 'MONITOR_FAIL_THRESHOLD', 'MONITOR_WARN_MS', 'IPTABLE_AUTO_ADD', 'IPTABLE_AUTO_REMOVE', 'XLSX_AUTO_SYNC'];
+  'MONITOR_TIMEOUT_MS', 'MONITOR_FAIL_THRESHOLD', 'MONITOR_WARN_MS', 'MONITOR_TYPES', 'IPTABLE_AUTO_ADD', 'IPTABLE_AUTO_REMOVE', 'XLSX_AUTO_SYNC'];
 const WRITABLE_SETTINGS = PUBLIC_SETTINGS;
 
 app.get('/api/settings', async (req, res) => {

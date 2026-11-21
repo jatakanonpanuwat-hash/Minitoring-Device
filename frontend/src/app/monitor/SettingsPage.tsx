@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { BellRing, FileSpreadsheet, ListChecks, Lock, Map as MapIcon, Network, Radar, Users } from 'lucide-react';
 import { cn } from '../components/ui/utils';
+import { CatalogIcon } from './catalog';
 import { ExcelImport } from './ExcelImport';
 import { useCatalog } from './catalog';
 import { useAuth } from './auth';
@@ -15,6 +16,8 @@ export interface MonitorForm {
   timeoutMs: string;
   failThreshold: string;
   warnMs: string;
+  /** ประเภทอุปกรณ์ที่ ping — null = ทุกประเภท */
+  types: string[] | null;
 }
 
 interface SettingsPageProps {
@@ -170,6 +173,65 @@ export function SettingsPage(props: SettingsPageProps) {
                       <label>Warn เมื่อช้ากว่า (ms)</label>
                       <input type="number" min={1} value={mf.warnMs} onChange={setMf('warnMs')} />
                     </div>
+                  </div>
+                  <div className="form-group">
+                    <label>ประเภทอุปกรณ์ที่ ping</label>
+                    <div className="monitor-type-mode">
+                      <label className="settings-check">
+                        <input
+                          type="radio"
+                          name="monitor-type-mode"
+                          checked={!mf.types}
+                          onChange={() => props.onMonitorForm({ ...mf, types: null })}
+                        />
+                        ทุกประเภท
+                      </label>
+                      <label className="settings-check">
+                        <input
+                          type="radio"
+                          name="monitor-type-mode"
+                          checked={!!mf.types}
+                          onChange={() => props.onMonitorForm({ ...mf, types: mf.types || catalog.types.map((t) => t.key) })}
+                        />
+                        เลือกเฉพาะประเภท
+                      </label>
+                    </div>
+                    {mf.types && (
+                      <>
+                        <div className="monitor-type-grid">
+                          {catalog.types.map((t) => {
+                            const on = mf.types!.includes(t.key);
+                            return (
+                              <label key={t.key} className={cn('monitor-type-chip', on && 'on')}>
+                                <input
+                                  type="checkbox"
+                                  checked={on}
+                                  onChange={() =>
+                                    props.onMonitorForm({
+                                      ...mf,
+                                      types: on ? mf.types!.filter((k) => k !== t.key) : [...mf.types!, t.key],
+                                    })
+                                  }
+                                />
+                                <CatalogIcon icon={t.icon} size={15} />
+                                <span>{t.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="monitor-type-tools">
+                          <button type="button" className="link-btn" onClick={() => props.onMonitorForm({ ...mf, types: catalog.types.map((t) => t.key) })}>
+                            เลือกทั้งหมด
+                          </button>
+                          <button type="button" className="link-btn" onClick={() => props.onMonitorForm({ ...mf, types: [] })}>
+                            ล้าง
+                          </button>
+                          <span className="hint">
+                            เลือก {mf.types.filter((k) => catalog.types.some((t) => t.key === k)).length}/{catalog.types.length} ประเภท · ประเภทที่ไม่ได้เลือกจะไม่ถูก ping (ทั้งรอบอัตโนมัติและ Ping ทั้งหมด)
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="btn-row settings-actions">
                     <button className="btn btn-green" onClick={props.onSaveMonitor}>

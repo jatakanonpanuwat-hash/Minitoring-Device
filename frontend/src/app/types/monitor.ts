@@ -87,6 +87,8 @@ export interface AppSettings {
   MONITOR_TIMEOUT_MS: string;
   MONITOR_FAIL_THRESHOLD: string;
   MONITOR_WARN_MS: string;
+  /** key ประเภทที่ ping คั่นด้วย , — ว่าง = ทุกประเภท */
+  MONITOR_TYPES: string;
   IPTABLE_AUTO_ADD: string;
   IPTABLE_AUTO_REMOVE: string;
   XLSX_AUTO_SYNC: string;

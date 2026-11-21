@@ -84,7 +84,7 @@ export function MonitorApp() {
   const [pwOpen, setPwOpen] = useState(false);
   const [adminResult, setAdminResult] = useState('');
   const [monitorForm, setMonitorForm] = useState<MonitorForm>({
-    enabled: true, intervalSec: '60', timeoutMs: '1000', failThreshold: '2', warnMs: '200',
+    enabled: true, intervalSec: '60', timeoutMs: '1000', failThreshold: '2', warnMs: '200', types: null,
   });
   const [monitorResult, setMonitorResult] = useState('');
   const [ipAuto, setIpAuto] = useState({ add: true, remove: 'soft' });
@@ -139,6 +139,7 @@ export function MonitorApp() {
       timeoutMs: s.MONITOR_TIMEOUT_MS,
       failThreshold: s.MONITOR_FAIL_THRESHOLD,
       warnMs: s.MONITOR_WARN_MS,
+      types: s.MONITOR_TYPES ? s.MONITOR_TYPES.split(',').map((x) => x.trim()).filter(Boolean) : null,
     });
     setIpAuto({ add: s.IPTABLE_AUTO_ADD !== 'FALSE', remove: s.IPTABLE_AUTO_REMOVE || 'soft' });
   }, []);
@@ -587,6 +588,10 @@ export function MonitorApp() {
   };
 
   const handleSaveMonitor = async () => {
+    if (monitorForm.types && monitorForm.types.length === 0) {
+      setMonitorResult('เลือกประเภทอุปกรณ์ที่จะ ping อย่างน้อย 1 ประเภท (หรือเลือก "ทุกประเภท")');
+      return;
+    }
     if (!(await confirmDialog({ title: 'บันทึกการตั้งค่า', message: 'บันทึกการตั้งค่า Monitor?', confirmLabel: 'บันทึก' }))) return;
     try {
       await saveSettings(
@@ -596,6 +601,7 @@ export function MonitorApp() {
           MONITOR_TIMEOUT_MS: monitorForm.timeoutMs,
           MONITOR_FAIL_THRESHOLD: monitorForm.failThreshold,
           MONITOR_WARN_MS: monitorForm.warnMs,
+          MONITOR_TYPES: monitorForm.types ? monitorForm.types.join(',') : '',
         },
         secret
       );

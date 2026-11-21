@@ -2141,3 +2141,18 @@
 .cctv-app .dev-marker:hover .dev-remove, .cctv-app .dev-marker.selected .dev-remove { opacity: 1; transform: scale(1); }
 .cctv-app .dev-remove:hover { background: #dc2626; transform: scale(1.12) !important; }
 @media (hover: none) { .cctv-app .dev-remove { opacity: 1; transform: scale(1); } }
+
+/* Settings > Monitor: เลือกประเภทอุปกรณ์ที่ ping */
+.cctv-app .monitor-type-mode { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+.cctv-app .monitor-type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+.cctv-app .monitor-type-chip {
+  display: flex !important; align-items: center; gap: 8px; margin: 0 !important; padding: 7px 10px;
+  border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer;
+  font-size: 13px !important; font-weight: 500 !important; color: #475569 !important; text-transform: none !important;
+}
+.cctv-app .monitor-type-chip input { width: auto !important; margin: 0; }
+.cctv-app .monitor-type-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cctv-app .monitor-type-chip.on { border-color: #93c5fd; background: #eff6ff; color: #1e3a8a !important; }
+.cctv-app .monitor-type-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.cctv-app .monitor-type-tools .hint { margin: 0; }
+.cctv-app .monitor-type-tools .link-btn { font-size: 12px; }
