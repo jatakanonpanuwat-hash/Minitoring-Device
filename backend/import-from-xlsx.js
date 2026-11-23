@@ -8,7 +8,7 @@
 // - แท็บ `cctv` → อุปกรณ์ประเภท camera (แทนที่เฉพาะประเภท camera — ประเภทอื่นไม่โดนลบ)
 // - แท็บ `Maps` → แผนผังทีละแผ่นตาม map_id เดิม (ไม่ลบแผนผังอื่นที่มีอยู่)
 //     รูปมาจาก --map-image MAP_ID=path (ใส่ซ้ำได้หลายแผ่น) ถ้าไม่ระบุจะลองโหลดรูปจาก Google Drive (ไฟล์ต้องแชร์แบบลิงก์)
-// - ไม่นำเข้า Logs / settings (token Telegram) / TABLE_IP / inventory
+// - ไม่นำเข้า Logs / settings / inventory
 //
 // อ่าน .xlsx เอง (zip + XML) ไม่ต้องลง package และอ่านค่าดิบ — ช่องที่ Excel แสดงเป็นวันที่ผิด ๆ (เช่น FOV 60 → 1900-02-28) จะได้ตัวเลขเดิม
 
@@ -31,7 +31,6 @@ const FILE = opt('file', DEFAULT_XLSX);
 const DRY_RUN = args.includes('--dry-run');
 const CLEAR = args.includes('--clear');
 const SHEET = opt('sheet', 'cctv');
-const ONLY = opt('only', 'cameras,iptable').split(',').map((x) => x.trim());
 
 // ---------- xlsx reader ----------
 function unzip(buf) {
@@ -147,67 +146,11 @@ function toDevice(r) {
   };
 }
 
-// ---------- TABLE_IP ----------
+// ---------- รายชื่อแท็บ ----------
 function listSheets(file) {
   const zip = unzip(toBuf(file));
   const workbook = zip['xl/workbook.xml']().toString('utf8');
   return [...workbook.matchAll(/<sheet\b[^>]*\bname="([^"]*)"/g)].map((m) => decodeXml(m[1]).trim());
-}
-
-// Excel เก็บวันเวลาเป็นจำนวนวันนับจาก 1899-12-30 ตามเวลาเครื่อง (ไทย UTC+7)
-function excelTime(v) {
-  if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000) - 7 * 3600000).toISOString();
-  const d = v ? new Date(v) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
-}
-
-function toIpRow(r) {
-  return {
-    row_no: num(r['No.'] ?? r.No ?? r.no),
-    nvr_ip: str(r['NVR IP'] ?? r.nvr_ip),
-    channel: num(r.Channel ?? r.channel),
-    camera_ip: str(r['Camera IP'] ?? r.camera_ip),
-    camera_name: str(r['Camera Name'] ?? r.camera_name),
-    control: str(r.Control ?? r.control ?? r.Cabinet),
-    status: str(r.Status ?? r.status),
-    remark: str(r.Remark ?? r.remark),
-  };
-}
-
-function toIpUpdate(r) {
-  return {
-    timestamp: excelTime(r.timestamp),
-    nvr_ip: str(r.nvr_ip),
-    channel: num(r.channel),
-    camera_ip: str(r.camera_ip),
-    camera_name: str(r.camera_name),
-    update_type: str(r.update_type),
-    detail: str(r.detail),
-    remark: str(r.remark),
-    updated_by_id: str(r.updated_by_id),
-    updated_by_name: str(r.updated_by_name),
-  };
-}
-
-// แท็บ TABLE_IP_<ปี> + TABLE_IP_UPDATES_<ปี> (แท็บ TABLE_IP_UPDATES ไม่มีปี = ของปีล่าสุด)
-function readIpTables(file) {
-  const names = listSheets(file);
-  const years = names.map((n) => (n.match(/^TABLE_IP_(\d{4})$/i) || [])[1]).filter(Boolean).map(Number).sort();
-  const latest = years[years.length - 1];
-  return years.map((year) => {
-    const rows = readSheet(file, `TABLE_IP_${year}`).map(toIpRow).filter((r) => r.camera_ip);
-    let updSheet = names.find((n) => n.toUpperCase() === `TABLE_IP_UPDATES_${year}`);
-    if (!updSheet && year === latest) updSheet = names.find((n) => n.toUpperCase() === 'TABLE_IP_UPDATES');
-    let updates;
-    if (updSheet) {
-      try {
-        updates = readSheet(file, updSheet).map(toIpUpdate).filter((u) => u.camera_ip || u.detail);
-      } catch {
-        updates = []; // แท็บมีแต่หัวตาราง
-      }
-    }
-    return { year, rows, updates };
-  });
 }
 
 async function api(method, p, body) {
@@ -252,32 +195,23 @@ async function main() {
     localImages[spec.slice(0, i).trim()] = file;
   }
 
-  const doCameras = ONLY.includes('cameras');
-  const doIpTable = ONLY.includes('iptable');
-
-  let devices = [];
+  const rows = readSheet(FILE, SHEET);
+  const devices = rows.map(toDevice).filter((d) => d.id);
+  const statuses = {};
+  const perMap = {};
+  devices.forEach((d) => {
+    statuses[d.status || '(ว่าง)'] = (statuses[d.status || '(ว่าง)'] || 0) + 1;
+    perMap[d.map_id || '(ไม่มีแผนผัง)'] = (perMap[d.map_id || '(ไม่มีแผนผัง)'] || 0) + 1;
+  });
+  console.log(`แท็บ ${SHEET}: ${devices.length} กล้อง (ข้าม ${rows.length - devices.length} แถวไม่มี id)`);
+  console.log(`  สถานะ: ${Object.entries(statuses).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+  console.log(`  แผนผัง: ${Object.entries(perMap).map(([k, v]) => `${k}=${v}`).join(', ')}`);
   let mapRows = [];
-  if (doCameras) {
-    const rows = readSheet(FILE, SHEET);
-    devices = rows.map(toDevice).filter((d) => d.id);
-    const statuses = {};
-    const perMap = {};
-    devices.forEach((d) => {
-      statuses[d.status || '(ว่าง)'] = (statuses[d.status || '(ว่าง)'] || 0) + 1;
-      perMap[d.map_id || '(ไม่มีแผนผัง)'] = (perMap[d.map_id || '(ไม่มีแผนผัง)'] || 0) + 1;
-    });
-    console.log(`แท็บ ${SHEET}: ${devices.length} กล้อง (ข้าม ${rows.length - devices.length} แถวไม่มี id)`);
-    console.log(`  สถานะ: ${Object.entries(statuses).map(([k, v]) => `${k}=${v}`).join(', ')}`);
-    console.log(`  แผนผัง: ${Object.entries(perMap).map(([k, v]) => `${k}=${v}`).join(', ')}`);
-    try {
-      mapRows = readSheet(FILE, 'Maps').filter((r) => str(r.map_id));
-    } catch (err) {
-      console.log(`  (ข้ามแผนผัง: ${err.message})`);
-    }
+  try {
+    mapRows = readSheet(FILE, 'Maps').filter((r) => str(r.map_id));
+  } catch (err) {
+    console.log(`  (ข้ามแผนผัง: ${err.message})`);
   }
-
-  const ipYears = doIpTable ? readIpTables(FILE) : [];
-  ipYears.forEach((y) => console.log(`TABLE_IP_${y.year}: ${y.rows.length} แถว, ประวัติ ${y.updates ? y.updates.length : 0}`));
 
   if (DRY_RUN) {
     mapRows.forEach((r) => console.log(`  map ${r.map_id} "${str(r.map_name)}" → ${localImages[r.map_id] ? `รูป ${localImages[r.map_id]}` : 'จะลองโหลดจาก Google Drive'}`));
@@ -292,12 +226,6 @@ async function main() {
     console.log(`ลบกล้องประเภท camera แล้ว (เหลือ ${res.imported})`);
     return;
   }
-
-  for (const y of ipYears) {
-    const res = await api('POST', '/iptable/import', { year: y.year, rows: y.rows, ...(y.updates ? { updates: y.updates } : {}) });
-    console.log(`นำเข้า TABLE_IP_${y.year}: ${res.imported} แถว (skipped ${res.skipped}), ประวัติ ${res.updates}`);
-  }
-  if (!doCameras) return;
 
   for (const r of mapRows) {
     const mapId = str(r.map_id);
@@ -320,10 +248,10 @@ async function main() {
 }
 
 // อ่านทั้งไฟล์ในครั้งเดียว — ใช้ทั้งสคริปต์นี้และ POST /api/import/xlsx (อัปโหลดจากหน้าเว็บ)
-function parseWorkbook(file, { cameras = true, iptable = true, sheet = 'cctv' } = {}) {
+function parseWorkbook(file, { cameras = true, sheet = 'cctv' } = {}) {
   const buf = toBuf(file);
   const sheets = listSheets(buf);
-  const out = { sheets, devices: [], skippedDevices: 0, mapRows: [], ipYears: [], warnings: [] };
+  const out = { sheets, devices: [], skippedDevices: 0, mapRows: [], warnings: [] };
   if (cameras) {
     if (sheets.some((n) => n.toLowerCase() === sheet.toLowerCase())) {
       const rows = readSheet(buf, sheet);
@@ -336,7 +264,6 @@ function parseWorkbook(file, { cameras = true, iptable = true, sheet = 'cctv' } 
       out.warnings.push(`ข้ามแผนผัง: ${err.message}`);
     }
   }
-  if (iptable) out.ipYears = readIpTables(buf);
   return out;
 }
 

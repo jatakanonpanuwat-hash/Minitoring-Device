@@ -14,7 +14,6 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | 'project' | null>(null);
   const [cameras, setCameras] = useState(true);
-  const [iptable, setIptable] = useState(true);
   const [preview, setPreview] = useState<XlsxImportSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -49,9 +48,9 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
     }
   };
 
-  const run = async (f: File | 'project', dryRun: boolean, opts = { cameras, iptable }) => {
-    if (!opts.cameras && !opts.iptable) {
-      setMsg('เลือกอย่างน้อย 1 อย่างที่จะนำเข้า');
+  const run = async (f: File | 'project', dryRun: boolean, opts = { cameras }) => {
+    if (!opts.cameras) {
+      setMsg('ติ๊กเลือกกล้องก่อนนำเข้า');
       setPreview(null);
       return;
     }
@@ -64,10 +63,7 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
         setMsg('');
       } else {
         const res = r.result!;
-        const parts = [
-          res.cameras && `กล้อง ${res.cameras.imported} ตัว`,
-          ...res.iptable.map((y) => `TABLE_IP_${y.year} ${y.imported} แถว`),
-        ].filter(Boolean);
+        const parts = [res.cameras && `กล้อง ${res.cameras.imported} ตัว`].filter(Boolean);
         const noImg = res.maps.filter((m) => m.status === 'no_image');
         setMsg(
           `✅ นำเข้าแล้ว: ${parts.join(', ')}` +
@@ -91,11 +87,9 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
     run(f, true);
   };
 
-  const toggle = (which: 'cameras' | 'iptable', v: boolean) => {
-    const opts = { cameras, iptable, [which]: v };
-    setCameras(opts.cameras);
-    setIptable(opts.iptable);
-    if (file) run(file, true, opts);
+  const toggleCameras = (v: boolean) => {
+    setCameras(v);
+    if (file) run(file, true, { cameras: v });
   };
 
   const confirmImport = async () => {
@@ -103,8 +97,7 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
     const warn = preview.cameras
       ? `กล้องประเภท camera ที่มีอยู่ ${preview.cameras.current} ตัวจะถูกแทนที่ด้วย ${preview.cameras.count} ตัวจากไฟล์\n(ตำแหน่ง/สถานะที่แก้ในเว็บหลังนำเข้าครั้งก่อนจะหาย — อุปกรณ์ประเภทอื่นไม่โดนลบ)\n\n`
       : '';
-    const ipWarn = preview.iptable.length ? `TABLE_IP ปี ${preview.iptable.map((y) => y.year).join(', ')} จะถูกแทนที่ทั้งปี\n\n` : '';
-    if (await confirmDialog({ title: 'นำเข้าข้อมูล', message: `${warn}${ipWarn}ยืนยันนำเข้า?`, confirmLabel: 'นำเข้า', danger: true })) run(file, false);
+    if (await confirmDialog({ title: 'นำเข้าข้อมูล', message: `${warn}ยืนยันนำเข้า?`, confirmLabel: 'นำเข้า', danger: true })) run(file, false);
   };
 
   return (
@@ -144,7 +137,7 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
             {sync.enabled && (
               <>
                 <br />
-                แก้ข้อมูลกล้อง / TABLE_IP ใน Excel แล้วกด Save — ที่แก้ในเว็บจะถูกทับ
+                แก้ข้อมูลกล้องใน Excel แล้วกด Save — ที่แก้ในเว็บจะถูกทับ
               </>
             )}
           </p>
@@ -152,12 +145,8 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
       )}
       <div className="form-group">
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, textTransform: 'none' }}>
-          <input type="checkbox" style={{ width: 'auto' }} checked={cameras} onChange={(e) => toggle('cameras', e.target.checked)} />
+          <input type="checkbox" style={{ width: 'auto' }} checked={cameras} onChange={(e) => toggleCameras(e.target.checked)} />
           กล้อง (แท็บ cctv + Maps)
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, textTransform: 'none' }}>
-          <input type="checkbox" style={{ width: 'auto' }} checked={iptable} onChange={(e) => toggle('iptable', e.target.checked)} />
-          TABLE_IP / NVR (แท็บ TABLE_IP_ปี + TABLE_IP_UPDATES)
         </label>
       </div>
       <button className="btn btn-dark btn-block" disabled={busy} onClick={() => inputRef.current?.click()}>
@@ -181,19 +170,14 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
               แผนผัง {m.map_name}: {m.exists ? 'มีอยู่แล้ว (ใช้รูปเดิม)' : 'ใหม่ — จะลองโหลดรูปจาก Google Drive'}
             </div>
           ))}
-          {preview.iptable.map((y) => (
-            <div key={y.year}>
-              TABLE_IP_{y.year}: {y.rows} แถว{y.updates != null && `, ประวัติ ${y.updates}`}
-            </div>
-          ))}
-          {preview.cameras === null && preview.iptable.length === 0 && <div>ไม่พบข้อมูลที่จะนำเข้า</div>}
+          {preview.cameras === null && <div>ไม่พบข้อมูลที่จะนำเข้า</div>}
           {preview.warnings.map((w) => (
             <div key={w}>⚠ {w}</div>
           ))}
           <button
             className="btn btn-green btn-block"
             style={{ marginTop: 8 }}
-            disabled={busy || (!preview.cameras?.count && preview.iptable.length === 0)}
+            disabled={busy || !preview.cameras?.count}
             onClick={confirmImport}
           >
             นำเข้าข้อมูล

@@ -3,6 +3,7 @@ import { cn } from '../components/ui/utils';
 import { findType, useCatalog } from './catalog';
 import { DirectionDial, isCameraLike } from './DirectionDial';
 import { LanCombobox } from './LanCombobox';
+import { CheckMethodFields } from './CheckMethodFields';
 import type { Device } from '../types/monitor';
 
 /** ข้อมูลในฟอร์มวางอุปกรณ์ใหม่ (string ทั้งหมด — '' = ไม่ระบุ) */
@@ -21,11 +22,15 @@ export interface PlaceForm {
   direction: string;
   fov_angle: string;
   remark: string;
+  check_method: string;
+  check_port: string;
+  snmp_community: string;
 }
 
 export const EMPTY_PLACE_FORM: PlaceForm = {
   name: '', device_type: '', zone: '', floor: '', status: '', ip_address: '', lan: '', cabinet: '',
   install_area: '', install_detail: '', requested_by: '', direction: '', fov_angle: '', remark: '',
+  check_method: 'ping', check_port: '', snmp_community: '',
 };
 
 
@@ -148,6 +153,17 @@ export function PlacePanel(props: PlacePanelProps) {
             <label>ตู้คอนโทรล</label>
             <input value={form.cabinet} onChange={set('cabinet')} />
           </div>
+        </div>
+
+        {/* วิธีตรวจ */}
+        <div className="pp-section">
+          <div className="pp-section-title">
+            <Network size={13} /> วิธีตรวจ
+          </div>
+          <CheckMethodFields
+            value={{ method: form.check_method, port: form.check_port, community: form.snmp_community }}
+            onChange={(v) => onForm({ ...form, check_method: v.method, check_port: v.port, snmp_community: v.community })}
+          />
         </div>
 
         {showDir && (

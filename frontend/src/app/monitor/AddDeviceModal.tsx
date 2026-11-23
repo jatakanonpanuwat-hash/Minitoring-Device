@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { MapPin, MapPinOff, Plus, X } from 'lucide-react';
+import { Archive, Cpu, MapPin, MapPinOff, Plus, Tag, X } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import type { Device } from '../types/monitor';
 import { useCatalog } from './catalog';
 import { LanCombobox } from './LanCombobox';
+import { SuggestCombobox } from './SuggestCombobox';
+import { CheckMethodFields } from './CheckMethodFields';
 
 export interface NewDeviceInput {
   data: Partial<Device> & { name: string };
@@ -19,7 +21,7 @@ interface AddDeviceModalProps {
   onSubmit: (input: NewDeviceInput) => Promise<string | null>;
 }
 
-const EMPTY = { name: '', device_type: '', ip_address: '', lan: '', zone: '', cabinet: '', brand: '', model: '', remark: '' };
+const EMPTY = { name: '', device_type: '', ip_address: '', lan: '', zone: '', cabinet: '', brand: '', model: '', remark: '', check_method: 'ping', check_port: '', snmp_community: '' };
 
 /** เพิ่มอุปกรณ์จากหน้ารายการ — ไม่ต้องคลิกบนแผนผัง */
 export function AddDeviceModal({ allDevices, hasMaps, onClose, onSubmit }: AddDeviceModalProps) {
@@ -43,6 +45,7 @@ export function AddDeviceModal({ allDevices, hasMaps, onClose, onSubmit }: AddDe
     setSaving(true);
     setError('');
     const clean = (v: string) => (v.trim() === '' ? null : v.trim());
+    const port = form.check_port.trim() === '' ? null : Number(form.check_port);
     const err = await onSubmit({
       data: {
         name: form.name.trim(),
@@ -56,6 +59,9 @@ export function AddDeviceModal({ allDevices, hasMaps, onClose, onSubmit }: AddDe
         remark: clean(form.remark),
         monitor_enabled: monitor,
         hide_on_map: !placeAfter,
+        check_method: form.check_method,
+        check_port: port != null && Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null,
+        snmp_community: clean(form.snmp_community),
       },
       placeAfter,
     });
@@ -118,18 +124,42 @@ export function AddDeviceModal({ allDevices, hasMaps, onClose, onSubmit }: AddDe
           </div>
           <div className="form-group">
             <label>ตู้ / Rack</label>
-            <input value={form.cabinet} onChange={set('cabinet')} />
+            <SuggestCombobox
+              value={form.cabinet}
+              devices={allDevices}
+              getValue={(d) => d.cabinet}
+              label="ตู้"
+              icon={<Archive size={12} />}
+              placeholder="พิมพ์ หรือเลือก"
+              onChange={(v) => setForm({ ...form, cabinet: v })}
+            />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label>ยี่ห้อ</label>
-            <input value={form.brand} onChange={set('brand')} />
+            <SuggestCombobox
+              value={form.brand}
+              devices={allDevices}
+              getValue={(d) => d.brand}
+              label="ยี่ห้อ"
+              icon={<Tag size={12} />}
+              placeholder="พิมพ์ หรือเลือก"
+              onChange={(v) => setForm({ ...form, brand: v })}
+            />
           </div>
           <div className="form-group">
             <label>รุ่น</label>
-            <input value={form.model} onChange={set('model')} />
+            <SuggestCombobox
+              value={form.model}
+              devices={allDevices}
+              getValue={(d) => d.model}
+              label="รุ่น"
+              icon={<Cpu size={12} />}
+              placeholder="พิมพ์ หรือเลือก"
+              onChange={(v) => setForm({ ...form, model: v })}
+            />
           </div>
         </div>
 
@@ -140,8 +170,13 @@ export function AddDeviceModal({ allDevices, hasMaps, onClose, onSubmit }: AddDe
 
         <label className="settings-check add-device-check">
           <input type="checkbox" checked={monitor} onChange={(e) => setMonitor(e.target.checked)} />
-          Monitor (ping อัตโนมัติ)
+          Monitor (ตรวจอัตโนมัติ)
         </label>
+
+        <CheckMethodFields
+          value={{ method: form.check_method, port: form.check_port, community: form.snmp_community }}
+          onChange={(v) => setForm({ ...form, check_method: v.method, check_port: v.port, snmp_community: v.community })}
+        />
 
         <div className="add-device-place">
           <button type="button" className={cn('add-device-opt', !placeAfter && 'active')} onClick={() => setPlaceAfter(false)}>

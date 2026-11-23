@@ -188,7 +188,7 @@ export function UsersSection() {
       )}
 
       <p className="hint" style={{ marginTop: 12 }}>
-        <b>Editor</b>: เพิ่ม / ย้าย / หมุน / แก้ / ลบอุปกรณ์ และแก้ TABLE_IP · <b>Admin</b>: ทุกอย่างของ Editor + ตั้งค่า, แผนผัง, ประเภท/สถานะ/โซน, นำเข้า Excel และจัดการผู้ใช้ ·
+        <b>Editor</b>: เพิ่ม / ย้าย / หมุน / แก้ / ลบอุปกรณ์ · <b>Admin</b>: ทุกอย่างของ Editor + ตั้งค่า, แผนผัง, ประเภท/สถานะ/โซน, นำเข้า Excel และจัดการผู้ใช้ ·
         ทุกคนดูแผนผัง / Dashboard / Log ได้โดยไม่ต้อง login
       </p>
     </>

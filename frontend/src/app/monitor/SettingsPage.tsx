@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { BellRing, FileSpreadsheet, ListChecks, Lock, Map as MapIcon, Network, Radar, Users } from 'lucide-react';
+import { BellRing, FileSpreadsheet, ListChecks, Lock, Map as MapIcon, Radar, Users } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { CatalogIcon } from './catalog';
 import { ExcelImport } from './ExcelImport';
@@ -33,13 +33,11 @@ interface SettingsPageProps {
   /** ping ทั้งหมดครบรอบ — โหลดสถานะอุปกรณ์ใหม่ */
   onMonitorRunDone: () => void;
   monitorResult: string;
-  ipAuto: { add: boolean; remove: string };
-  onIpAuto: (v: { add: boolean; remove: string }) => void;
   onOpenCatalog: () => void;
   onImported: () => void;
 }
 
-type SectionKey = 'users' | 'monitor' | 'telegram' | 'iptable' | 'catalog' | 'import';
+type SectionKey = 'users' | 'monitor' | 'telegram' | 'catalog' | 'import';
 
 interface Section {
   key: SectionKey;
@@ -52,7 +50,6 @@ const SECTIONS: Section[] = [
   { key: 'users', icon: Users, title: 'ผู้ใช้งาน', desc: 'บัญชี login และสิทธิ์ Admin / Editor' },
   { key: 'monitor', icon: Radar, title: 'Monitor', desc: 'ping อัตโนมัติ · รอบเวลา · เกณฑ์สถานะ' },
   { key: 'telegram', icon: BellRing, title: 'แจ้งเตือน Telegram', desc: 'ส่งข้อความเมื่ออุปกรณ์ Offline / กลับมา Online' },
-  { key: 'iptable', icon: Network, title: 'ซิงก์ TABLE_IP / NVR', desc: 'อัปเดตตาราง IP เมื่อเพิ่ม/ลบกล้อง' },
   { key: 'catalog', icon: ListChecks, title: 'ประเภท / สถานะ / โซน', desc: 'ไอคอน สี และชื่อของรายการ' },
   { key: 'import', icon: FileSpreadsheet, title: 'นำเข้าจาก Excel', desc: 'นำเข้าอุปกรณ์และแผนผังจากไฟล์' },
 ];
@@ -246,35 +243,6 @@ export function SettingsPage(props: SettingsPageProps) {
 
                   <div className="settings-subhead">Ping ทั้งหมด / Log</div>
                   <MonitorRunLog secret={props.secret} onFinished={props.onMonitorRunDone} />
-                </>
-              )}
-
-              {current.key === 'iptable' && (
-                <>
-                  <div className="form-group">
-                    <label className="settings-check">
-                      <input
-                        type="checkbox"
-                        checked={props.ipAuto.add}
-                        onChange={(e) => props.onIpAuto({ ...props.ipAuto, add: e.target.checked })}
-                      />
-                      เพิ่ม/แก้กล้อง → ใส่ IP เข้าตารางปีปัจจุบันอัตโนมัติ (หา NVR + CH ถัดไป)
-                    </label>
-                  </div>
-                  <div className="form-group" style={{ maxWidth: 360 }}>
-                    <label>ลบกล้อง → ตาราง IP</label>
-                    <select value={props.ipAuto.remove} onChange={(e) => props.onIpAuto({ ...props.ipAuto, remove: e.target.value })}>
-                      <option value="soft">ทำเครื่องหมาย DELETED (เก็บแถวไว้)</option>
-                      <option value="hard">ลบแถวออก</option>
-                      <option value="off">ไม่ทำอะไร</option>
-                    </select>
-                  </div>
-                  <p className="hint">บันทึกอัตโนมัติเมื่อเปลี่ยนค่า</p>
-                  {props.monitorResult && (
-                    <p className="hint" style={{ marginTop: 6 }}>
-                      {props.monitorResult}
-                    </p>
-                  )}
                 </>
               )}
 

@@ -87,7 +87,6 @@ export function MonitorApp() {
     enabled: true, intervalSec: '60', timeoutMs: '1000', failThreshold: '2', warnMs: '200', types: null,
   });
   const [monitorResult, setMonitorResult] = useState('');
-  const [ipAuto, setIpAuto] = useState({ add: true, remove: 'soft' });
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   const [monitorStatus, setMonitorStatus] = useState<MonitorStatus | null>(null);
   const [catalog, setCatalog] = useState<Catalog>(EMPTY_CATALOG);
@@ -141,7 +140,6 @@ export function MonitorApp() {
       warnMs: s.MONITOR_WARN_MS,
       types: s.MONITOR_TYPES ? s.MONITOR_TYPES.split(',').map((x) => x.trim()).filter(Boolean) : null,
     });
-    setIpAuto({ add: s.IPTABLE_AUTO_ADD !== 'FALSE', remove: s.IPTABLE_AUTO_REMOVE || 'soft' });
   }, []);
 
   useEffect(() => {
@@ -211,17 +209,6 @@ export function MonitorApp() {
     setSelected(d);
     setModal(null);
     setFocus((f) => ({ id: d.id, n: (f?.n || 0) + 1 }));
-  };
-
-  const handleSaveIpAuto = async (next: { add: boolean; remove: string }) => {
-    setIpAuto(next);
-    try {
-      await saveSettings({ IPTABLE_AUTO_ADD: next.add ? 'TRUE' : 'FALSE', IPTABLE_AUTO_REMOVE: next.remove }, secret);
-      setMonitorResult('บันทึกการซิงก์ TABLE_IP แล้ว');
-    } catch {
-      setMonitorResult('บันทึกไม่สำเร็จ — ไม่มีสิทธิ์หรือยังไม่ได้เข้าสู่ระบบ');
-      loadSettings().catch(() => {});
-    }
   };
 
   const openDevice = (d: Device) => {
@@ -710,8 +697,6 @@ export function MonitorApp() {
             onSaveMonitor={handleSaveMonitor}
             onMonitorRunDone={handleMonitorRunDone}
             monitorResult={monitorResult}
-            ipAuto={ipAuto}
-            onIpAuto={handleSaveIpAuto}
             onOpenCatalog={() => setModal('catalog')}
             onImported={() => {
               refreshMaps();

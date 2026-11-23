@@ -4,7 +4,8 @@ export interface ColumnDatum {
   key: string;
   /** ป้ายใต้แท่ง (เว้นว่าง = ไม่แสดง เพื่อไม่ให้ชนกัน) */
   label: string;
-  value: number;
+  /** null = ช่องว่าง (ไม่มีข้อมูล วาดเป็นลายเส้น ไม่ใช่แท่ง 0) */
+  value: number | null;
   /** บรรทัดใน tooltip */
   tip: string[];
 }
@@ -18,12 +19,17 @@ function niceMax(v: number): number {
 }
 
 /** กราฟแท่งแนวตั้ง ชุดเดียว — มีเส้นกริด, ป้ายค่าเฉพาะแท่งสูงสุด, tooltip เมื่อชี้ */
-export function ColumnChart({ data, color, unit }: { data: ColumnDatum[]; color: string; unit: string }) {
+export function ColumnChart({ data, color, unit, emptyText }: { data: ColumnDatum[]; color: string; unit: string; emptyText?: string }) {
   const [hover, setHover] = useState<number | null>(null);
-  const max = niceMax(Math.max(0, ...data.map((d) => d.value)));
+  const max = niceMax(Math.max(0, ...data.map((d) => d.value ?? 0)));
   const ticks = [0, max / 2, max];
-  const peak = data.reduce((best, d, i) => (d.value > (data[best]?.value ?? -1) ? i : best), 0);
-  const allZero = data.every((d) => d.value === 0);
+  let peak = -1;
+  data.forEach((d, i) => {
+    if (d.value != null && (peak < 0 || d.value > (data[peak].value ?? -1))) peak = i;
+  });
+  const hasValue = data.some((d) => d.value != null);
+  // ไม่ส่ง emptyText = พฤติกรรมเดิม (เลข 0 ทั้งหมด = ไม่มีข้อมูล) — ส่งมา = มีข้อมูล 0 จริง แสดงข้อความเฉพาะตอนว่างทุกช่อง
+  const empty = !hasValue || (emptyText === undefined && data.every((d) => d.value == null || d.value === 0));
 
   return (
     <div className="col-chart" onMouseLeave={() => setHover(null)}>
@@ -39,16 +45,18 @@ export function ColumnChart({ data, color, unit }: { data: ColumnDatum[]; color:
           {data.map((d, i) => (
             <div
               key={d.key}
-              className={'col-slot' + (hover === i ? ' hover' : '')}
+              className={'col-slot' + (hover === i ? ' hover' : '') + (d.value == null ? ' gap' : '')}
               onMouseEnter={() => setHover(i)}
               onClick={() => setHover(i)}
             >
               <div className="col-bar-wrap">
-                {!allZero && i === peak && d.value > 0 && <span className="col-peak mono">{d.value}</span>}
-                <div
-                  className="col-bar"
-                  style={{ height: `${(d.value / max) * 100}%`, background: color, opacity: hover == null || hover === i ? 1 : 0.55 }}
-                />
+                {i === peak && d.value != null && d.value > 0 && <span className="col-peak mono">{d.value}</span>}
+                {d.value != null && (
+                  <div
+                    className="col-bar"
+                    style={{ height: `${(d.value / max) * 100}%`, background: color, opacity: hover == null || hover === i ? 1 : 0.55 }}
+                  />
+                )}
               </div>
               {hover === i && (
                 <div className={'col-tip' + (i > data.length * 0.6 ? ' left' : '')}>
@@ -68,7 +76,7 @@ export function ColumnChart({ data, color, unit }: { data: ColumnDatum[]; color:
           <span key={d.key}>{d.label}</span>
         ))}
       </div>
-      {allZero && <div className="col-empty">ไม่มี{unit}ในช่วงนี้</div>}
+      {empty && <div className="col-empty">{emptyText ?? `ไม่มี${unit}ในช่วงนี้`}</div>}
     </div>
   );
 }

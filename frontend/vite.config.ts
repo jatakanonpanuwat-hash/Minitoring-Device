@@ -16,6 +16,7 @@ export default defineConfig({
     proxy: {
       '/monitoring-device/api': {
         target: 'http://localhost:5000',
+        xfwd: true, // ส่ง X-Forwarded-For ให้ backend เห็น IP จริงของผู้เปิดเว็บ (แถบล่าง)
         rewrite: (path) => path.replace('/monitoring-device', ''),
       },
     },

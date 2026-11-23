@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Lock, Maximize, Minus, Move, Plus, X, MapPinOff } from 'lucide-react';
+import { Check, Lock, Maximize, Minus, Move, Plus, X } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { formatAgo } from '../types/monitor';
 import type { Device, MapItem } from '../types/monitor';
@@ -43,7 +43,7 @@ interface ViewerProps {
   placing?: Device | null;
   /** บันทึกตำแหน่งให้อุปกรณ์ที่กำลังวาง — คืนข้อความ error หรือ null */
   onConfirmPlaceExisting?: (id: string, x: number, y: number) => Promise<string | null>;
-  /** เปิดฟอร์มเพิ่มอุปกรณ์แบบไม่วางบนแผนผัง */
+  /** เปิดฟอร์มเพิ่มอุปกรณ์ (เลือกในฟอร์มว่าจะวางบนแผนผังหรือไม่) */
   onAddUnplaced?: () => void;
   /** เอาหมุดออกจากแผนผัง (ตั้งเป็น "ไม่แสดงบนแผนผัง") — ปุ่ม × บนหมุดในโหมดย้าย */
   onRemoveFromMap?: (d: Device) => void;
@@ -149,6 +149,7 @@ export function Viewer(props: ViewerProps) {
     const f = placeForm;
     const num = (v: string) => (v.trim() === '' ? null : Number(v));
     const opt = (v: string) => (v.trim() === '' ? null : v.trim());
+    const port = f.check_port.trim() === '' ? null : Number(f.check_port);
     const data: Partial<Device> = {
       name: f.name.trim(),
       device_type: placeType,
@@ -163,6 +164,9 @@ export function Viewer(props: ViewerProps) {
       direction: num(f.direction),
       fov_angle: num(f.fov_angle),
       remark: opt(f.remark),
+      check_method: f.check_method || 'ping',
+      check_port: port != null && Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null,
+      snmp_community: opt(f.snmp_community),
     };
     setPlaceSaving(true);
     setPlaceError('');
@@ -315,7 +319,7 @@ export function Viewer(props: ViewerProps) {
     });
   };
 
-  // ซูมไปที่อุปกรณ์ (เช่นกด "ไปที่กล้อง" จาก TABLE_IP) — ถ้ารูปแผนผังยังโหลดไม่เสร็จ รอทำหลัง onLoad
+  // ซูมไปที่อุปกรณ์ (เช่นกดจากรายการอุปกรณ์) — ถ้ารูปแผนผังยังโหลดไม่เสร็จ รอทำหลัง onLoad
   const pendingFocus = useRef<string | null>(null);
   const applyFocus = (id: string) => {
     const d = devices.find((x) => x.id === id);
@@ -728,18 +732,13 @@ export function Viewer(props: ViewerProps) {
             </button>
           ) : mode === 'view' ? (
             <>
-              <button className="map-tool primary" title="เพิ่มอุปกรณ์ - คลิกบนแผนผังเพื่อวาง" onClick={() => props.onMode('place')}>
+              <button
+                className="map-tool primary"
+                title="เพิ่มอุปกรณ์ - เลือกในฟอร์มว่าจะวางบนแผนผังหรือไม่"
+                onClick={() => (props.onAddUnplaced ? props.onAddUnplaced() : props.onMode('place'))}
+              >
                 <Plus /> เพิ่มอุปกรณ์
               </button>
-              {props.onAddUnplaced && (
-                <button
-                  className="map-tool"
-                  title="เพิ่มอุปกรณ์ที่ไม่ต้องวางบนแผนผัง (เช่น สวิตช์ / NVR ในห้อง server)"
-                  onClick={props.onAddUnplaced}
-                >
-                  <MapPinOff /> เพิ่มแบบไม่วาง
-                </button>
-              )}
               <button className="map-tool" title="ย้ายอุปกรณ์ / หมุนทิศกล้อง / เอาออกจากแผนผัง" onClick={() => props.onMode('move')}>
                 <Move /> ย้าย / หมุน
               </button>

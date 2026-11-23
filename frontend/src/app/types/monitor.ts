@@ -1,6 +1,8 @@
 // ประเภท / สถานะ / โซน มาจากรายการที่ผู้ดูแลกำหนด (GET /api/catalog) — key เป็น string
 export type DeviceStatus = string;
 export type DeviceType = string;
+/** วิธีตรวจอุปกรณ์: 'ping' (ICMP) / 'tcp' (เปิดพอร์ต) / 'snmp' (ถาม sysUpTime) */
+export type CheckMethod = string;
 
 export interface CatalogItem {
   key: string;
@@ -37,6 +39,12 @@ export interface Device {
   serial_no: string | null;
   status: DeviceStatus;
   monitor_enabled: boolean;
+  /** วิธีตรวจ (backend ใส่ 'ping' ให้ถ้าไม่มี) */
+  check_method: CheckMethod;
+  /** TCP: พอร์ตปลายทาง / SNMP: พอร์ต (null = 161) */
+  check_port: number | null;
+  /** SNMP v2c community (null = public) */
+  snmp_community: string | null;
   /** ตั้งใจไม่วางบนแผนผัง (เช่นสวิตช์ในห้อง server) — ไม่นับเป็น "ยังไม่วาง" */
   hide_on_map?: boolean;
   last_seen: string | null;
@@ -89,47 +97,7 @@ export interface AppSettings {
   MONITOR_WARN_MS: string;
   /** key ประเภทที่ ping คั่นด้วย , — ว่าง = ทุกประเภท */
   MONITOR_TYPES: string;
-  IPTABLE_AUTO_ADD: string;
-  IPTABLE_AUTO_REMOVE: string;
   XLSX_AUTO_SYNC: string;
-}
-
-// ---------- TABLE_IP / NVR ----------
-export interface IpRow {
-  id: string;
-  year: number;
-  row_no: number | null;
-  nvr_ip: string | null;
-  channel: number | null;
-  camera_ip: string | null;
-  camera_name: string | null;
-  control: string | null;
-  status: string | null;
-  remark: string | null;
-  updated_at?: string;
-}
-
-export interface IpUpdate {
-  id: number;
-  year: number;
-  timestamp: string;
-  row_id: string | null;
-  nvr_ip: string | null;
-  channel: number | null;
-  camera_ip: string | null;
-  camera_name: string | null;
-  update_type: string | null;
-  detail: string | null;
-  remark: string | null;
-  updated_by_id: string | null;
-  updated_by_name: string | null;
-}
-
-export interface IpYearsInfo {
-  years: { year: number; count: number }[];
-  current: number;
-  update_types: string[];
-  auto: { add: boolean; remove: 'soft' | 'hard' | 'off' };
 }
 
 // ---------- สแนปช็อตรายการอุปกรณ์รายปี ----------
@@ -158,6 +126,26 @@ export interface MonitorStatus {
   running: boolean;
   lastRunAt: string | null;
   checked: number;
+}
+
+// ---------- ประวัติผลตรวจ (กราฟ uptime ย้อนหลัง) ----------
+export type HistoryRange = '24h' | '7d' | '30d';
+
+export interface HistoryBucket {
+  /** UTC ISO — รายชั่วโมง (24h/7d) หรือรายวัน (30d) */
+  t: string;
+  checks: number;
+  alive: number;
+  /** % uptime ของช่องนี้ (null = ไม่มีข้อมูล) */
+  uptime: number | null;
+  /** latency เฉลี่ย ms (null = ไม่มีข้อมูล) */
+  latency: number | null;
+}
+
+export interface DeviceHistory {
+  device_id: string;
+  range: string;
+  buckets: HistoryBucket[];
 }
 
 /** มีตำแหน่งบนแผนผังแล้วหรือยัง */

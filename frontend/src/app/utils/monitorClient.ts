@@ -1,6 +1,6 @@
 import type {
-  AppSettings, Catalog, CatalogItem, CatalogKind, Device, DeviceSnapshot, DeviceSnapshotYearsInfo,
-  IpRow, IpUpdate, IpYearsInfo, LogEntry, MapItem, MonitorStatus,
+  AppSettings, Catalog, CatalogItem, CatalogKind, Device, DeviceHistory, DeviceSnapshot, DeviceSnapshotYearsInfo,
+  HistoryRange, LogEntry, MapItem, MonitorStatus,
 } from '../types/monitor';
 
 const BASE = import.meta.env.BASE_URL;
@@ -164,6 +164,21 @@ export async function saveDeviceSnapshot(year: number, adminSecret: string): Pro
   return request('api/devices/snapshots', { method: 'POST', headers: adminHeaders(adminSecret), body: JSON.stringify({ year }) });
 }
 
+// ---------- network (แถบล่าง) ----------
+export interface NetworkInfo {
+  server: {
+    hostname: string;
+    ips: { iface: string; address: string }[];
+    wifi: { connected: boolean; ssid: string | null; signal: number | null } | null;
+    internet: { online: boolean; latencyMs: number | null };
+  };
+  client: { ip: string };
+  checkedAt: string;
+}
+export async function getNetworkInfo(): Promise<NetworkInfo> {
+  return request<NetworkInfo>('api/network');
+}
+
 // ---------- monitor ----------
 export async function getMonitorStatus(): Promise<MonitorStatus> {
   return request<MonitorStatus>('api/monitor/status');
@@ -229,47 +244,6 @@ export async function uploadIcon(file: File, adminSecret: string): Promise<strin
   return r.icon;
 }
 
-// ---------- TABLE_IP / NVR ----------
-export async function getIpYears(): Promise<IpYearsInfo> {
-  return request<IpYearsInfo>('api/iptable/years');
-}
-
-export async function getIpTable(year: number): Promise<{ year: number; rows: IpRow[] }> {
-  return request(`api/iptable?year=${year}`);
-}
-
-export async function createIpRow(year: number, data: Partial<IpRow>, adminSecret: string): Promise<IpRow> {
-  return request<IpRow>('api/iptable', { method: 'POST', headers: adminHeaders(adminSecret), body: JSON.stringify({ ...data, year }) });
-}
-
-export async function updateIpRow(
-  id: string,
-  data: Partial<IpRow> & { update_type?: string; update_remark?: string },
-  adminSecret: string
-): Promise<IpRow> {
-  return request<IpRow>(`api/iptable/${id}`, { method: 'PUT', headers: adminHeaders(adminSecret), body: JSON.stringify(data) });
-}
-
-export async function deleteIpRow(id: string, adminSecret: string): Promise<void> {
-  await request(`api/iptable/${id}`, { method: 'DELETE', headers: { 'x-admin-secret': adminSecret } });
-}
-
-export async function createIpYear(year: number, copyFrom: number | null, adminSecret: string): Promise<{ year: number; count: number }> {
-  return request('api/iptable/years', { method: 'POST', headers: adminHeaders(adminSecret), body: JSON.stringify({ year, copy_from: copyFrom }) });
-}
-
-export async function getIpUpdates(year: number, ip?: string): Promise<IpUpdate[]> {
-  const q = ip ? `&ip=${encodeURIComponent(ip)}` : '';
-  return request<IpUpdate[]>(`api/iptable/updates?year=${year}${q}`);
-}
-
-export async function addIpUpdate(
-  data: { row_id: string; update_type: string; detail: string; remark?: string },
-  adminSecret: string
-): Promise<void> {
-  await request('api/iptable/updates', { method: 'POST', headers: adminHeaders(adminSecret), body: JSON.stringify(data) });
-}
-
 // ---------- maps ----------
 export async function getMaps(): Promise<MapItem[]> {
   return request<MapItem[]>('api/maps');
@@ -329,6 +303,10 @@ export async function getEventStats(days = 14): Promise<EventStats> {
   return request<EventStats>(`api/stats/events?days=${days}`);
 }
 
+export async function getDeviceHistory(id: string, range: HistoryRange): Promise<DeviceHistory> {
+  return request<DeviceHistory>(`api/devices/${id}/history?range=${range}`);
+}
+
 // ---------- settings / notify ----------
 export async function getSettings(): Promise<AppSettings> {
   return request<AppSettings>('api/settings');
@@ -368,9 +346,7 @@ export interface XlsxImportSummary {
   warnings: string[];
   cameras: { count: number; skipped: number; current: number } | null;
   maps: { map_id: string; map_name: string; exists: boolean }[];
-  iptable: { year: number; rows: number; updates: number | null }[];
   result?: {
-    iptable: { year: number; imported: number; skipped: number; updates: number }[];
     maps: { map_id: string; map_name: string; status: 'exists' | 'downloaded' | 'no_image' }[];
     cameras: { imported: number; skipped: number } | null;
   };
@@ -378,13 +354,13 @@ export interface XlsxImportSummary {
 
 export async function importXlsx(
   file: File | 'project', // 'project' = อ่าน backend/data/CCTV-MECHA-PART.xlsx ในโปรเจกต์
-  opts: { cameras: boolean; iptable: boolean; dryRun: boolean },
+  opts: { cameras: boolean; dryRun: boolean },
   adminSecret: string,
 ): Promise<XlsxImportSummary> {
   const form = new FormData();
   if (file === 'project') form.append('source', 'project');
   else form.append('file', file);
-  form.append('only', [opts.cameras && 'cameras', opts.iptable && 'iptable'].filter(Boolean).join(','));
+  form.append('only', opts.cameras ? 'cameras' : '');
   if (opts.dryRun) form.append('dry_run', '1');
   return request<XlsxImportSummary>('api/import/xlsx', {
     method: 'POST',

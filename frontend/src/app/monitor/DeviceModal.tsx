@@ -8,6 +8,8 @@ import { actionLabel } from './LogsPage';
 import { useAuth } from './auth';
 import { DirectionDial } from './DirectionDial';
 import { LanCombobox } from './LanCombobox';
+import { CheckMethodFields } from './CheckMethodFields';
+import { DeviceHistory } from './DeviceHistory';
 
 interface DeviceModalProps {
   device: Device;
@@ -46,6 +48,9 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
     direction: s(device.direction),
     fov_angle: s(device.fov_angle),
     remark: s(device.remark),
+    check_method: device.check_method || 'ping',
+    check_port: s(device.check_port),
+    snmp_community: s(device.snmp_community),
   });
   const [saving, setSaving] = useState(false);
   const [pingMsg, setPingMsg] = useState('');
@@ -71,11 +76,14 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
     void _st;
     void _mp;
     try {
+      const port = form.check_port.trim() === '' ? null : Number(form.check_port);
       await onSave(device.id, {
         ...rest,
         floor: autoFloor || null,
         direction: num(form.direction),
         fov_angle: num(form.fov_angle),
+        check_port: port != null && Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null,
+        snmp_community: form.snmp_community.trim() === '' ? null : form.snmp_community.trim(),
       });
     } finally {
       setSaving(false);
@@ -83,7 +91,7 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
   };
 
   const ping = async () => {
-    setPingMsg('กำลัง ping...');
+    setPingMsg('กำลังตรวจ...');
     try {
       const r = await onPing(device.id);
       setPingMsg(r.alive ? `ตอบกลับ ${r.latency ?? '?'} ms` : 'ไม่ตอบ (timeout)');
@@ -121,7 +129,7 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
           <div className="place-notice hidden-map">
             <MapPinOff size={16} />
             <span>
-              ไม่แสดงบนแผนผัง <small>ยังถูก ping และแจ้งเตือนตามปกติ</small>
+              ไม่แสดงบนแผนผัง <small>ยังถูกตรวจและแจ้งเตือนตามปกติ</small>
             </span>
             {canEdit && (
               <>
@@ -180,7 +188,7 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
             ตรวจล่าสุด <b>{formatAgo(device.last_checked)}</b>
           </span>
           <button className="btn btn-dark btn-sm" disabled={!device.ip_address} onClick={ping}>
-            <Activity size={14} /> Ping ตอนนี้
+            <Activity size={14} /> ตรวจตอนนี้
           </button>
           {pingMsg && <span className="hint">{pingMsg}</span>}
         </div>
@@ -209,7 +217,7 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label>Monitor (ping อัตโนมัติ)</label>
+            <label>Monitor (ตรวจอัตโนมัติ)</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, textTransform: 'none', margin: '8px 0' }}>
               <input
                 type="checkbox"
@@ -221,11 +229,15 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
             </label>
           </div>
           <div className="form-group">
-            <label>สถานะ (อัตโนมัติตาม ping)</label>
-            <input value={findStatus(catalog, device.status).label} disabled title="สถานะเปลี่ยนเองตามผล ping แก้เองไม่ได้" />
-            {paused && <span className="hint">สถานะนี้หยุด ping อัตโนมัติ</span>}
+            <label>สถานะ (อัตโนมัติตามผลตรวจ)</label>
+            <input value={findStatus(catalog, device.status).label} disabled title="สถานะเปลี่ยนเองตามผลตรวจ แก้เองไม่ได้" />
+            {paused && <span className="hint">สถานะนี้หยุดตรวจอัตโนมัติ</span>}
           </div>
         </div>
+        <CheckMethodFields
+          value={{ method: form.check_method, port: form.check_port, community: form.snmp_community }}
+          onChange={(v) => setForm({ ...form, check_method: v.method, check_port: v.port, snmp_community: v.community })}
+        />
         <div className="form-group">
           <label>แผนผัง (ตามตำแหน่งที่วาง)</label>
           <input value={mapLabel} disabled title="แผนผังเปลี่ยนตามตำแหน่งที่วางบนแผนผัง แก้เองไม่ได้" />
@@ -303,6 +315,8 @@ export function DeviceModal({ device, maps, onClose, onSave, onDelete, onPing, o
           </button>
         </div>
         )}
+
+        <DeviceHistory deviceId={device.id} />
 
         <div className="section-title" style={{ marginTop: 16 }}>
           <span>ประวัติล่าสุด</span>

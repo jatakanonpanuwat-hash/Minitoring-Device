@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const os = require('os');
+const net = require('net');
+const snmp = require('net-snmp');
 const { execFile } = require('child_process');
 
 const app = express();
@@ -118,10 +120,10 @@ const memDevices = [];
 const memMaps = [];
 const memLogs = [];
 const memSettings = {};
-const memIpRows = [];     // TABLE_IP (iptable.js)
-const memIpUpdates = [];  // TABLE_IP_UPDATES (iptable.js)
 const memUsers = [];      // บัญชีผู้ใช้ (auth.js)
 const memDeviceSnapshots = []; // สแนปช็อตรายการอุปกรณ์รายปี { year, created_at, created_by, device_count, devices }
+const memCheckHistory = []; // ประวัติผลตรวจรายชั่วโมง { device_id, hour, checks, alive, latency_sum, latency_n }
+const historyIndex = new Map(); // `${device_id}|${hour}` -> แถวใน memCheckHistory
 
 const STORE_FILE = process.env.STORE_FILE === 'off'
   ? null
@@ -131,7 +133,7 @@ let lastSaved = '';
 function storeSnapshot() {
   return JSON.stringify({
     devices: memDevices, maps: memMaps, logs: memLogs, settings: memSettings,
-    ip_rows: memIpRows, ip_updates: memIpUpdates, users: memUsers, device_snapshots: memDeviceSnapshots
+    users: memUsers, device_snapshots: memDeviceSnapshots, check_history: memCheckHistory
   });
 }
 
@@ -143,12 +145,12 @@ function loadStore() {
     memMaps.push(...(data.maps || []));
     memLogs.push(...(data.logs || []));
     Object.assign(memSettings, data.settings || {});
-    memIpRows.push(...(data.ip_rows || []));
-    memIpUpdates.push(...(data.ip_updates || []));
     memUsers.push(...(data.users || []));
     memDeviceSnapshots.push(...(data.device_snapshots || []));
+    memCheckHistory.push(...(data.check_history || []));
+    for (const r of memCheckHistory) historyIndex.set(`${r.device_id}|${r.hour}`, r);
     lastSaved = storeSnapshot();
-    console.log(`[store] โหลดข้อมูลจาก ${STORE_FILE}: อุปกรณ์ ${memDevices.length}, แผนผัง ${memMaps.length}, ประวัติ ${memLogs.length}, TABLE_IP ${memIpRows.length}`);
+    console.log(`[store] โหลดข้อมูลจาก ${STORE_FILE}: อุปกรณ์ ${memDevices.length}, แผนผัง ${memMaps.length}, ประวัติ ${memLogs.length}`);
   } catch (err) {
     // ไฟล์เสีย — เก็บสำรองไว้ ไม่เขียนทับ แล้วเริ่มจากว่าง
     const backup = `${STORE_FILE}.broken-${Date.now()}`;
@@ -213,15 +215,6 @@ const auth = require('./auth')({
 });
 // (auth.js ติดตั้ง middleware อ่านตัวตนให้เองก่อน route ทั้งหมด)
 
-// ========== TABLE_IP / NVR ==========
-const ipTable = require('./iptable')({
-  app, requireAdmin: requireEditor, USE_DB,
-  query: (...a) => query(...a),
-  getSetting: (...a) => getSetting(...a),
-  addLog: (...a) => addLog(...a),
-  memIpRows, memIpUpdates
-});
-
 // ========== DEVICE SCHEMA ==========
 // ประเภท / สถานะ / โซน ผู้ดูแลกำหนดเองได้ — ดู "CATALOG" ด้านล่าง
 
@@ -252,14 +245,17 @@ const DEVICE_COLUMNS = {
   requested_by:    'VARCHAR(200)',
   updated_at:      'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
   updated_by:      'VARCHAR(200)',
-  hide_on_map:     'TINYINT(1) NOT NULL DEFAULT 0'  // 1 = ตั้งใจไม่วางบนแผนผัง (ไม่นับเป็น "ยังไม่วาง")
+  hide_on_map:     'TINYINT(1) NOT NULL DEFAULT 0', // 1 = ตั้งใจไม่วางบนแผนผัง (ไม่นับเป็น "ยังไม่วาง")
+  check_method:   "VARCHAR(10) NOT NULL DEFAULT 'ping'", // วิธีตรวจ: ping / tcp / snmp
+  check_port:     'INT',                          // TCP: พอร์ตปลายทาง / SNMP: พอร์ต (ว่าง = 161)
+  snmp_community: 'VARCHAR(100)',                  // SNMP v2c community (ว่าง = public)
 };
 
 // ฟิลด์ที่ client แก้ได้ (สถานะ ping/last_seen ระบบเป็นคนเขียน)
 const DEVICE_FIELDS = ['name', 'device_type', 'zone', 'floor', 'x_percent', 'y_percent', 'ip_address',
   'mac_address', 'brand', 'model', 'serial_no', 'status', 'monitor_enabled', 'remark', 'map_id',
   'direction', 'fov_angle', 'lan', 'cabinet', 'install_area', 'install_detail', 'requested_by', 'updated_by',
-  'hide_on_map'];
+  'hide_on_map', 'check_method', 'check_port', 'snmp_community'];
 
 // ========== DB INIT ==========
 async function initDB() {
@@ -329,8 +325,18 @@ async function initDB() {
       data         LONGTEXT
     )
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS check_history (
+      device_id   VARCHAR(36) NOT NULL,
+      hour        VARCHAR(13) NOT NULL,
+      checks      INT         NOT NULL DEFAULT 0,
+      alive       INT         NOT NULL DEFAULT 0,
+      latency_sum DECIMAL(12,2) NOT NULL DEFAULT 0,
+      latency_n   INT         NOT NULL DEFAULT 0,
+      PRIMARY KEY (device_id, hour)
+    )
+  `);
   await migrateFromCctv();
-  await ipTable.initDB();
   await auth.initDB();
 }
 
@@ -405,6 +411,16 @@ async function replaceDevicesByType(type, rows) {
   const validStatuses = new Set(catalog.statuses.map((s) => s.key));
   const clean = rows.map((r) => cleanDeviceRow(r, validStatuses, type)).filter(Boolean);
   for (const z of new Set(clean.map((d) => d.zone).filter(Boolean))) await ensureZone(z);
+  // วิธีตรวจเป็นค่าตั้งรายเครื่อง ไม่อยู่ในไฟล์นำเข้า — จำของ id เดิมไว้แล้วใส่คืนหลังแทนที่
+  const keepCheck = new Map();
+  for (const d of await listDevices()) {
+    if (d.device_type === type && (d.check_method !== 'ping' || d.check_port != null || d.snmp_community)) {
+      keepCheck.set(d.id, { check_method: d.check_method, check_port: d.check_port, snmp_community: d.snmp_community });
+    }
+  }
+  const restoreCheck = async () => {
+    for (const [id, cfg] of keepCheck) await writeMonitorResult(id, cfg);
+  };
   if (!USE_DB) {
     for (let i = memDevices.length - 1; i >= 0; i--) {
       if (memDevices[i].device_type === type) memDevices.splice(i, 1);
@@ -415,10 +431,12 @@ async function replaceDevicesByType(type, rows) {
       last_seen: null, last_checked: null, last_latency_ms: null,
       created_at: now, updated_at: now, ...d
     })));
+    await restoreCheck();
     return { imported: clean.length, skipped: rows.length - clean.length };
   }
   await query('DELETE FROM devices WHERE device_type = ?', [type]);
   if (clean.length > 0) await bulkInsert('devices', DEVICE_IMPORT_FIELDS, clean);
+  await restoreCheck();
   return { imported: clean.length, skipped: rows.length - clean.length };
 }
 
@@ -485,6 +503,15 @@ async function pickDeviceFields(body) {
     else await ensureZone(out.zone);
   }
   if (out.monitor_enabled !== undefined) out.monitor_enabled = out.monitor_enabled ? 1 : 0;
+  if (out.check_method !== undefined && !['ping', 'tcp', 'snmp'].includes(out.check_method)) out.check_method = 'ping';
+  if (out.check_port !== undefined) {
+    const p = Number(out.check_port);
+    out.check_port = Number.isInteger(p) && p >= 1 && p <= 65535 ? p : null;
+  }
+  if (out.snmp_community !== undefined) {
+    const c = String(out.snmp_community ?? '').trim().slice(0, 100);
+    out.snmp_community = c === '' ? null : c;
+  }
   if (out.ip_address) out.ip_address = String(out.ip_address).trim();
   if (out.hide_on_map !== undefined) out.hide_on_map = out.hide_on_map && out.hide_on_map !== 'false' && out.hide_on_map !== '0' ? 1 : 0;
   if (out.hide_on_map === 1) {
@@ -512,7 +539,9 @@ function normalizeDevice(d) {
     last_latency_ms: num(d.last_latency_ms),
     fail_count: Number(d.fail_count || 0),
     monitor_enabled: !!Number(d.monitor_enabled),
-    hide_on_map: !!Number(d.hide_on_map || 0)
+    hide_on_map: !!Number(d.hide_on_map || 0),
+    check_method: d.check_method || 'ping',
+    check_port: num(d.check_port)
   };
 }
 
@@ -642,9 +671,16 @@ async function deleteDeviceRow(id) {
   if (!USE_DB) {
     const i = memDevices.findIndex((d) => d.id === id);
     if (i !== -1) memDevices.splice(i, 1);
+    for (let j = memCheckHistory.length - 1; j >= 0; j--) {
+      if (memCheckHistory[j].device_id === id) {
+        historyIndex.delete(`${id}|${memCheckHistory[j].hour}`);
+        memCheckHistory.splice(j, 1);
+      }
+    }
     return;
   }
   await query('DELETE FROM devices WHERE id = ?', [id]);
+  await query('DELETE FROM check_history WHERE device_id = ?', [id]);
 }
 
 // ---------- map store ----------
@@ -736,8 +772,6 @@ const SETTING_DEFAULTS = {
   MONITOR_FAIL_THRESHOLD: '2',  // ping ไม่ผ่านติดกันกี่รอบถึงนับว่า offline
   MONITOR_WARN_MS: '200',       // latency เกินนี้ = warning
   MONITOR_TYPES: '',            // ประเภทอุปกรณ์ที่ ping (key คั่นด้วย , ) — ว่าง = ทุกประเภท
-  IPTABLE_AUTO_ADD: 'TRUE',     // เพิ่ม/แก้กล้อง → ซิงก์ IP เข้า TABLE_IP ปีปัจจุบัน
-  IPTABLE_AUTO_REMOVE: 'soft',  // ลบกล้อง → soft (ใส่สถานะ DELETED) / hard (ลบแถว) / off
   XLSX_AUTO_SYNC: 'TRUE',       // เฝ้าไฟล์ Excel ในโปรเจกต์ เปลี่ยนเมื่อไหร่นำเข้าใหม่
   XLSX_LAST_HASH: '',           // (ภายใน) hash ของไฟล์ที่ซิงก์ล่าสุด
   TELEGRAM_ENABLED: 'FALSE',    // แจ้งเตือน Telegram เมื่ออุปกรณ์ offline
@@ -905,10 +939,125 @@ function pingHost(host, timeoutMs) {
   });
 }
 
+// ตรวจด้วยการเปิด TCP ไปยังพอร์ตปลายทาง — สำหรับอุปกรณ์ที่ปิด ICMP (ping ไม่ตอบทั้งที่ใช้งานได้)
+function tcpCheck(host, port, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!HOST_RE.test(host)) return resolve({ alive: false, latency: null, error: 'invalid host' });
+    const started = Date.now();
+    const sock = new net.Socket();
+    let settled = false;
+    const done = (alive) => {
+      if (settled) return;
+      settled = true;
+      try { sock.destroy(); } catch { /* ignore */ }
+      resolve({ alive, latency: alive ? Date.now() - started : null });
+    };
+    sock.setTimeout(timeoutMs);
+    sock.once('connect', () => done(true));
+    sock.once('timeout', () => done(false));
+    sock.once('error', () => done(false));
+    try {
+      sock.connect(port, host);
+    } catch {
+      done(false);
+    }
+  });
+}
+
+// ตรวจด้วย SNMP v2c (ถาม sysUpTime.0) — สำหรับสวิตช์/อุปกรณ์เครือข่ายที่เปิด SNMP ไว้
+const SNMP_SYS_UPTIME_OID = '1.3.6.1.2.1.1.3.0';
+const SNMP_DEFAULT_PORT = 161;
+const SNMP_DEFAULT_COMMUNITY = 'public';
+
+function snmpCheck(host, port, community, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!HOST_RE.test(host)) return resolve({ alive: false, latency: null, error: 'invalid host' });
+    const started = Date.now();
+    let session;
+    let settled = false;
+    const done = (alive) => {
+      if (settled) return;
+      settled = true;
+      try { session.close(); } catch { /* ignore */ }
+      resolve({ alive, latency: alive ? Date.now() - started : null });
+    };
+    try {
+      session = snmp.createSession(host, community || SNMP_DEFAULT_COMMUNITY, {
+        port: port || SNMP_DEFAULT_PORT,
+        version: snmp.Version2c,
+        timeout: timeoutMs,
+        retries: 0,
+      });
+    } catch {
+      return resolve({ alive: false, latency: null });
+    }
+    // ตอบกลับเพี้ยน/ถอดรหัสไม่ได้ — net-snmp ส่ง 'error' แทน callback (ไม่ดัก = backend ล้มทั้ง process)
+    session.on('error', () => done(false));
+    session.get([SNMP_SYS_UPTIME_OID], (err, varbinds) => {
+      if (err) return done(false);
+      done(Array.isArray(varbinds) && varbinds.length > 0 && !snmp.isVarbindError(varbinds[0]));
+    });
+  });
+}
+
 const monitorState = { running: false, lastRunAt: null, lastDurationMs: null, checked: 0, timer: null };
 
-// ตัดสินสถานะจากผล ping 1 ครั้ง + จำนวนครั้งที่ไม่ผ่านติดกัน
-async function applyPingResult(device, result, cfg) {
+// ========== ประวัติผลตรวจรายชั่วโมง (กราฟ uptime ย้อนหลัง) ==========
+// รวมผลตรวจทั้งรอบเป็น 1 แถว/อุปกรณ์/ชั่วโมง (UTC 'YYYY-MM-DDTHH') — ชั่วโมงที่ไม่มีแถว = ไม่มีการตรวจ (backend ปิด / ปิด monitor)
+// เก็บ 30 วันย้อนหลัง เกินนี้ลบอัตโนมัติหลังจบรอบตรวจ (อย่างมากชั่วโมงละครั้ง)
+const HISTORY_RETENTION_DAYS = 30;
+const hourKey = (d = new Date()) => d.toISOString().slice(0, 13);
+
+async function recordHistory(deviceId, alive, latency) {
+  const hour = hourKey();
+  const hasLatency = alive && latency != null;
+  if (!USE_DB) {
+    const key = `${deviceId}|${hour}`;
+    let row = historyIndex.get(key);
+    if (!row) {
+      row = { device_id: deviceId, hour, checks: 0, alive: 0, latency_sum: 0, latency_n: 0 };
+      memCheckHistory.push(row);
+      historyIndex.set(key, row);
+    }
+    row.checks++;
+    if (alive) row.alive++;
+    if (hasLatency) { row.latency_sum += latency; row.latency_n++; }
+    return;
+  }
+  await query(
+    `INSERT INTO check_history (device_id, hour, checks, alive, latency_sum, latency_n) VALUES (?, ?, 1, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE checks = checks + 1, alive = alive + VALUES(alive),
+     latency_sum = latency_sum + VALUES(latency_sum), latency_n = latency_n + VALUES(latency_n)`,
+    [deviceId, hour, alive ? 1 : 0, hasLatency ? latency : 0, hasLatency ? 1 : 0]
+  );
+}
+
+let lastHistoryPrune = 0;
+async function pruneHistory() {
+  const now = Date.now();
+  if (now - lastHistoryPrune < 3600000) return;
+  lastHistoryPrune = now;
+  const cutoff = new Date(now - HISTORY_RETENTION_DAYS * 86400000).toISOString().slice(0, 13);
+  if (!USE_DB) {
+    for (let i = memCheckHistory.length - 1; i >= 0; i--) {
+      if (memCheckHistory[i].hour < cutoff) {
+        historyIndex.delete(`${memCheckHistory[i].device_id}|${memCheckHistory[i].hour}`);
+        memCheckHistory.splice(i, 1);
+      }
+    }
+    return;
+  }
+  await query('DELETE FROM check_history WHERE hour < ?', [cutoff]);
+}
+
+// ตัดสินสถานะจากผลตรวจ 1 ครั้ง + จำนวนครั้งที่ไม่ผ่านติดกัน
+function checkMethodLabel(method, device) {
+  if (method === 'tcp') return `TCP :${device.check_port}`;
+  if (method === 'snmp') return 'SNMP';
+  return 'ping';
+}
+
+async function applyCheckResult(device, result, cfg, method = 'ping') {
   const now = new Date();
   const patch = { last_checked: USE_DB ? now : now.toISOString() };
   let next = device.status;
@@ -925,14 +1074,16 @@ async function applyPingResult(device, result, cfg) {
   }
   if (next !== device.status) patch.status = next;
   await writeMonitorResult(device.id, patch);
+  recordHistory(device.id, result.alive, result.latency).catch((err) => console.error('[history]', err.message));
 
+  const label = checkMethodLabel(method, device);
   const wasDown = device.status === 'offline';
   if (next === 'offline' && !wasDown) {
-    const details = `ping ไม่ตอบ ${patch.fail_count} ครั้งติดกัน`;
+    const details = `${label} ไม่ตอบ ${patch.fail_count} ครั้งติดกัน`;
     await addLog({ action: 'down', device_id: device.id, device_name: device.name, zone: device.zone, floor: device.floor, details, employee_name: 'system' });
     queueAlert('down', device, { failCount: patch.fail_count });
   } else if (wasDown && (next === 'online' || next === 'warning')) {
-    const details = `ping ตอบกลับ ${result.latency != null ? `${result.latency} ms` : ''}`.trim();
+    const details = `${label} ตอบกลับ ${result.latency != null ? `${result.latency} ms` : ''}`.trim();
     await addLog({ action: 'up', device_id: device.id, device_name: device.name, zone: device.zone, floor: device.floor, details, employee_name: 'system' });
     queueAlert('up', device, { latency: result.latency });
   }
@@ -1060,9 +1211,23 @@ function shouldMonitor(device, paused, cfg) {
     (!cfg.types || cfg.types.has(device.device_type)));
 }
 
+// วิธีตรวจของเครื่องนี้ — TCP แต่ไม่ใส่พอร์ต = ถอยไป ping (กันตั้งค่าค้างแล้วหยุดตรวจ)
+function checkMethodOf(device) {
+  const m = device.check_method || 'ping';
+  if (m === 'tcp' && !(device.check_port >= 1 && device.check_port <= 65535)) return 'ping';
+  return ['ping', 'tcp', 'snmp'].includes(m) ? m : 'ping';
+}
+
+async function runCheck(device, method, timeoutMs) {
+  if (method === 'tcp') return tcpCheck(device.ip_address, device.check_port, timeoutMs);
+  if (method === 'snmp') return snmpCheck(device.ip_address, device.check_port, device.snmp_community, timeoutMs);
+  return pingHost(device.ip_address, timeoutMs);
+}
+
 async function checkDevice(device, cfg) {
-  const result = await pingHost(device.ip_address, cfg.timeoutMs);
-  return applyPingResult(device, result, cfg);
+  const method = checkMethodOf(device);
+  const result = await runCheck(device, method, cfg.timeoutMs);
+  return applyCheckResult(device, result, cfg, method);
 }
 
 // ความคืบหน้าของรอบ ping ล่าสุด — หน้า Settings ดึงไปแสดงเป็น log วิ่ง (GET /api/monitor/progress)
@@ -1117,6 +1282,7 @@ async function runMonitorCycle(source = 'auto') {
       ));
     }
     monitorState.checked = targets.length;
+    pruneHistory().catch((err) => console.error('[history]', err.message));
     flushAlerts(); // ไม่ต้องรอ — ส่ง Telegram ช้าไม่ควรถ่วงรอบ ping
     monitorState.lastRunAt = new Date().toISOString();
     monitorState.lastDurationMs = Date.now() - started;
@@ -1150,6 +1316,90 @@ app.get('/api/health', async (req, res) => {
     res.json({ ok: true, db: USE_DB, mode: USE_DB ? 'mariadb' : 'memory' });
   } catch (err) {
     res.status(500).json({ ok: false, db: false });
+  }
+});
+
+// ---------- network (สถานะเครือข่ายของเครื่อง server + IP ของผู้เปิดเว็บ) ----------
+// IPv4 ของการ์ดเครือข่ายที่ใช้งานอยู่ (ไม่รวม loopback / ไม่รวม IP 169.254.x ที่ได้ตอนไม่มี DHCP)
+function serverIPv4s() {
+  const out = [];
+  for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
+    for (const a of addrs || []) {
+      if (a.family !== 'IPv4' && a.family !== 4) continue;
+      if (a.internal || a.address.startsWith('169.254.')) continue;
+      out.push({ iface: name, address: a.address });
+    }
+  }
+  return out;
+}
+
+// WiFi: Windows ใช้ netsh (ไม่ต้องสิทธิ์ admin) — เครื่องที่ไม่มีการ์ด WiFi / ต่อสายแลน จะได้ null
+function wifiInfo() {
+  return new Promise((resolve) => {
+    if (!IS_WIN) return resolve(null);
+    execFile('netsh', ['wlan', 'show', 'interfaces'], { timeout: 4000, windowsHide: true }, (err, stdout) => {
+      const out = String(stdout || '');
+      if (err || !out.trim()) return resolve(null);
+      const field = (re) => (out.match(re) || [])[1]?.trim() || null;
+      const ssid = field(/^\s*SSID\s*:\s*(.+)$/im);
+      const signal = field(/:\s*(\d{1,3})\s*%/);
+      // label "State" อาจเป็นภาษาอื่นตามภาษาของ Windows — ถ้ามี SSID ถือว่าเชื่อมต่ออยู่
+      const state = field(/^\s*State\s*:\s*(.+)$/im);
+      const connected = state ? /^connected$/i.test(state) : !!ssid;
+      resolve({ connected, ssid, signal: signal ? Number(signal) : null });
+    });
+  });
+}
+
+// อินเทอร์เน็ต: เปิด TCP ไป DNS สาธารณะ (ไม่พึ่ง ICMP ที่บางเครือข่ายบล็อก) — ตัวใดตัวหนึ่งตอบ = ออนไลน์
+async function internetCheck() {
+  const results = await Promise.all([tcpCheck('1.1.1.1', 53, 2500), tcpCheck('8.8.8.8', 53, 2500)]);
+  const ok = results.filter((r) => r.alive);
+  return { online: ok.length > 0, latencyMs: ok.length ? Math.min(...ok.map((r) => r.latency)) : null };
+}
+
+// แคชไว้สั้น ๆ — หลายคนเปิดเว็บพร้อมกันจะได้ไม่เรียก netsh / ต่อ TCP ซ้ำทุก request
+const NETWORK_CACHE_MS = 10000;
+let networkCache = { at: 0, data: null, pending: null };
+async function serverNetwork() {
+  if (networkCache.data && Date.now() - networkCache.at < NETWORK_CACHE_MS) return networkCache.data;
+  if (!networkCache.pending) {
+    networkCache.pending = Promise.all([wifiInfo(), internetCheck()])
+      .then(([wifi, internet]) => {
+        networkCache = { at: Date.now(), data: { hostname: os.hostname(), ips: serverIPv4s(), wifi, internet }, pending: null };
+        return networkCache.data;
+      })
+      .catch((e) => {
+        networkCache.pending = null;
+        throw e;
+      });
+  }
+  return networkCache.pending;
+}
+
+function normalizeIp(ip) {
+  ip = String(ip || '').trim();
+  if (ip === '::1') return '127.0.0.1';
+  return ip.replace(/^::ffff:/, '');
+}
+// เชื่อ X-Forwarded-For เฉพาะเมื่อคำขอมาจาก proxy บนเครื่องเดียวกัน (vite dev / reverse proxy local)
+// — คนภายนอกส่ง header นี้มาเองจะไม่มีผล
+function clientIp(req) {
+  const peer = normalizeIp(req.socket?.remoteAddress);
+  const xff = req.headers['x-forwarded-for'];
+  if (peer.startsWith('127.') && xff) {
+    const first = normalizeIp(String(xff).split(',')[0]);
+    if (first) return first;
+  }
+  return peer;
+}
+
+app.get('/api/network', async (req, res) => {
+  try {
+    const server = await serverNetwork();
+    res.json({ server, client: { ip: clientIp(req) }, checkedAt: new Date(networkCache.at || Date.now()).toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1238,7 +1488,6 @@ app.post('/api/devices', requireEditor, async (req, res) => {
       action: 'added', device_id: device.id, device_name: device.name,
       zone: device.zone, floor: device.floor, details: `เพิ่มอุปกรณ์ ${device.name}`, new_values: device
     });
-    await ipTable.onDeviceAdded(device, { name: req.body && req.body.employee_name });
     res.status(201).json(device);
     // ping ทันทีให้เห็นสถานะโดยไม่ต้องรอรอบถัดไป
     monitorConfig().then(async (cfg) => {
@@ -1275,7 +1524,6 @@ app.put('/api/devices/:id', requireEditor, async (req, res) => {
       details: removed ? `เอาออกจากแผนผัง ${device.name}` : moved ? `ย้ายตำแหน่ง ${device.name}` : `แก้ไข ${device.name}`,
       old_values: old, new_values: device
     });
-    await ipTable.onDeviceUpdated(old, device, { name: req.body && req.body.employee_name });
     res.json(device);
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
@@ -1292,7 +1540,6 @@ app.delete('/api/devices/:id', requireEditor, async (req, res) => {
       action: 'deleted', device_id: old.id, device_name: old.name,
       zone: old.zone, floor: old.floor, details: `ลบอุปกรณ์ ${old.name}`, old_values: old
     });
-    await ipTable.onDeviceDeleted(old, { name: req.body && req.body.employee_name });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
@@ -1316,8 +1563,6 @@ app.post('/api/devices/:id/restore', requireEditor, async (req, res) => {
       action: 'added', device_id: device.id, device_name: device.name,
       zone: device.zone, floor: device.floor, details: `กู้คืนอุปกรณ์ ${device.name} (เลิกทำการลบ)`, new_values: device
     });
-    // แถว TABLE_IP ที่ถูก soft-delete จะกลับมาใช้แถวเดิม
-    await ipTable.onDeviceAdded(device, { name: req.body && req.body.employee_name });
     res.status(201).json(device);
     monitorConfig().then(async (cfg) => {
       if (shouldMonitor(device, await pausedStatusKeys(), cfg)) await checkDevice(device, cfg);
@@ -1345,8 +1590,7 @@ const xlsxHash = (buf) => crypto.createHash('sha1').update(buf).digest('hex');
 // เขียนข้อมูลจาก workbook ที่อ่านแล้ว — ใช้ทั้งปุ่มนำเข้าในหน้าเว็บและซิงก์อัตโนมัติ
 // keepRuntime: เก็บสถานะ ping เดิม (online/offline, last_seen …) ของกล้อง id เดิม ไม่ให้รีเซ็ตทุกครั้งที่บันทึก Excel
 async function applyWorkbook(wb, { only, fileName, keepRuntime = false }) {
-  const result = { iptable: [], maps: [], cameras: null };
-  for (const y of wb.ipYears) result.iptable.push(await ipTable.importYear(y.year, y.rows, y.updates));
+  const result = { maps: [], cameras: null };
   // แผนผัง: ที่มีอยู่แล้วไม่แตะรูป, ที่ยังไม่มีลองโหลดรูปจาก Google Drive
   const mapIds = new Set((await listMaps()).map((m) => m.map_id));
   for (const r of wb.mapRows) {
@@ -1396,11 +1640,11 @@ app.post('/api/import/xlsx', requireAdmin, (req, res, next) => {
     req.file = { buffer: fs.readFileSync(p), originalname: path.basename(p) };
   }
   if (!req.file) return res.status(400).json({ error: 'ต้องแนบไฟล์ .xlsx (field "file")' });
-  const only = String(req.body.only || 'cameras,iptable').split(',').map((x) => x.trim());
+  const only = String(req.body.only || 'cameras').split(',').map((x) => x.trim());
   const dryRun = ['1', 'true'].includes(String(req.body.dry_run || '').toLowerCase());
   let wb;
   try {
-    wb = xlsxImport.parseWorkbook(req.file.buffer, { cameras: only.includes('cameras'), iptable: only.includes('iptable') });
+    wb = xlsxImport.parseWorkbook(req.file.buffer, { cameras: only.includes('cameras') });
   } catch (err) {
     return res.status(400).json({ error: `อ่านไฟล์ไม่ได้: ${err.message}` });
   }
@@ -1413,7 +1657,6 @@ app.post('/api/import/xlsx', requireAdmin, (req, res, next) => {
     warnings: wb.warnings,
     cameras: only.includes('cameras') ? { count: wb.devices.length, skipped: wb.skippedDevices, current: currentCameras } : null,
     maps: wb.mapRows.map((r) => ({ map_id: xlsxImport.str(r.map_id), map_name: xlsxImport.str(r.map_name) || xlsxImport.str(r.map_id), exists: mapIds.has(xlsxImport.str(r.map_id)) })),
-    iptable: wb.ipYears.map((y) => ({ year: y.year, rows: y.rows.length, updates: y.updates ? y.updates.length : null })),
   };
   if (dryRun) return res.json({ ok: true, dry_run: true, ...summary });
   if (only.includes('cameras') && wb.devices.length === 0) {
@@ -1424,8 +1667,8 @@ app.post('/api/import/xlsx', requireAdmin, (req, res, next) => {
   xlsxImporting = true;
   try {
     const result = await applyWorkbook(wb, { only, fileName: req.file.originalname });
-    // นำเข้าไฟล์ในโปรเจกต์ครบทั้งสองส่วน = ซิงก์แล้ว ไม่ต้องให้ตัวเฝ้าไฟล์นำเข้าซ้ำ
-    if (req.body.source === 'project' && only.includes('cameras') && only.includes('iptable')) {
+    // นำเข้าไฟล์ในโปรเจกต์ครบ = ซิงก์แล้ว ไม่ต้องให้ตัวเฝ้าไฟล์นำเข้าซ้ำ
+    if (req.body.source === 'project' && only.includes('cameras')) {
       await setSetting('XLSX_LAST_HASH', xlsxHash(req.file.buffer));
       xlsxSync.lastSync = new Date().toISOString();
       xlsxSync.lastError = null;
@@ -1440,7 +1683,7 @@ app.post('/api/import/xlsx', requireAdmin, (req, res, next) => {
 });
 
 // ---------- ซิงก์อัตโนมัติ: เฝ้าไฟล์ Excel ในโปรเจกต์ บันทึกใน Excel แล้วนำเข้าใหม่เอง ----------
-// Excel เป็นต้นฉบับของกล้อง + TABLE_IP — การแก้กล้อง/TABLE_IP ในเว็บจะถูกทับเมื่อไฟล์เปลี่ยน
+// Excel เป็นต้นฉบับของกล้อง — การแก้กล้องในเว็บจะถูกทับเมื่อไฟล์เปลี่ยน
 // เทียบ hash ของไฟล์กับครั้งล่าสุด (เก็บใน settings) จึงไม่นำเข้าซ้ำตอนรีสตาร์ตถ้าไฟล์ไม่เปลี่ยน
 const xlsxSync = { lastSync: null, lastError: null, lastResult: null, timer: null, retries: 0 };
 
@@ -1468,11 +1711,11 @@ async function syncXlsxIfChanged(reason) {
   }
   xlsxImporting = true;
   try {
-    const result = await applyWorkbook(wb, { only: ['cameras', 'iptable'], fileName: path.basename(file), keepRuntime: true });
+    const result = await applyWorkbook(wb, { only: ['cameras'], fileName: path.basename(file), keepRuntime: true });
     await setSetting('XLSX_LAST_HASH', xlsxHash(buf));
     xlsxSync.lastSync = new Date().toISOString();
     xlsxSync.lastError = null;
-    xlsxSync.lastResult = `กล้อง ${result.cameras ? result.cameras.imported : 0} ตัว, ${result.iptable.map((y) => `TABLE_IP_${y.year} ${y.imported} แถว`).join(', ')}`;
+    xlsxSync.lastResult = `กล้อง ${result.cameras ? result.cameras.imported : 0} ตัว`;
     console.log(`[xlsx-sync] ${reason}: ${xlsxSync.lastResult}`);
   } catch (err) {
     xlsxSync.lastError = `ซิงก์ล้มเหลว: ${err.message}`;
@@ -1526,22 +1769,72 @@ app.post('/api/devices/import', requireAdmin, async (req, res) => {
   }
 });
 
-// ping อุปกรณ์ตัวเดียวทันที (ปุ่ม "Ping ตอนนี้")
+// ตรวจอุปกรณ์ตัวเดียวทันทีด้วยวิธีของเครื่องนั้น (ปุ่ม "ตรวจตอนนี้")
 app.post('/api/devices/:id/ping', async (req, res) => {
   try {
     const device = await getDevice(req.params.id);
     if (!device) return res.status(404).json({ error: 'Not found' });
     if (!device.ip_address) return res.status(400).json({ error: 'อุปกรณ์นี้ยังไม่มี IP' });
     const cfg = await monitorConfig();
-    const result = await pingHost(device.ip_address, cfg.timeoutMs);
-    // อยู่ในสถานะที่หยุด ping (เช่น maintenance), ปิด monitor หรือประเภทไม่ได้เลือกไว้ — แสดงผลอย่างเดียว ไม่เปลี่ยนสถานะ
+    const method = checkMethodOf(device);
+    const result = await runCheck(device, method, cfg.timeoutMs);
+    // อยู่ในสถานะที่หยุดตรวจ (เช่น maintenance), ปิด monitor หรือประเภทไม่ได้เลือกไว้ — แสดงผลอย่างเดียว ไม่เปลี่ยนสถานะ
     if (shouldMonitor(device, await pausedStatusKeys(), cfg)) {
-      await applyPingResult(device, result, cfg);
+      await applyCheckResult(device, result, cfg, method);
       flushAlerts();
     }
-    res.json({ ...result, device: await getDevice(device.id) });
+    res.json({ ...result, method, device: await getDevice(device.id) });
   } catch (err) {
     res.status(500).json({ error: 'Ping failed' });
+  }
+});
+
+// ประวัติผลตรวจรายเครื่อง — กราฟ uptime ย้อนหลัง (?range=24h|7d|30d, 30 วันยุบเป็นรายวัน)
+// t เป็น UTC ISO — ชั่วโมงที่หายไป = ช่วงนั้นไม่มีการตรวจ (วาดเป็นช่องว่าง ไม่ใช่ 0%)
+app.get('/api/devices/:id/history', async (req, res) => {
+  try {
+    const device = await getDevice(req.params.id);
+    if (!device) return res.status(404).json({ error: 'Not found' });
+    const range = ['24h', '7d', '30d'].includes(req.query.range) ? req.query.range : '24h';
+    const hours = range === '30d' ? 720 : range === '7d' ? 168 : 24;
+    const cutoff = new Date(Date.now() - hours * 3600000).toISOString().slice(0, 13);
+    let rows;
+    if (!USE_DB) {
+      rows = memCheckHistory
+        .filter((r) => r.device_id === device.id && r.hour >= cutoff)
+        .sort((a, b) => (a.hour < b.hour ? -1 : 1));
+    } else {
+      rows = await query(
+        'SELECT hour, checks, alive, latency_sum, latency_n FROM check_history WHERE device_id = ? AND hour >= ? ORDER BY hour',
+        [device.id, cutoff]
+      );
+    }
+    let buckets = rows.map((r) => ({
+      t: `${r.hour}:00:00Z`,
+      checks: Number(r.checks), alive: Number(r.alive),
+      latSum: Number(r.latency_sum), latN: Number(r.latency_n),
+    }));
+    if (range === '30d') {
+      const days = new Map();
+      for (const b of buckets) {
+        const day = b.t.slice(0, 10);
+        const d = days.get(day) || { t: `${day}T00:00:00Z`, checks: 0, alive: 0, latSum: 0, latN: 0 };
+        d.checks += b.checks; d.alive += b.alive; d.latSum += b.latSum; d.latN += b.latN;
+        days.set(day, d);
+      }
+      buckets = [...days.values()];
+    }
+    res.json({
+      device_id: device.id,
+      range,
+      buckets: buckets.map((b) => ({
+        t: b.t, checks: b.checks, alive: b.alive,
+        uptime: b.checks ? Math.round((b.alive / b.checks) * 1000) / 10 : null,
+        latency: b.latN ? Math.round((b.latSum / b.latN) * 10) / 10 : null,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
   }
 });
 
@@ -1811,7 +2104,7 @@ app.post('/api/logs/import', requireAdmin, async (req, res) => {
 
 // ---------- settings ----------
 const PUBLIC_SETTINGS = ['MONITOR_ENABLED', 'MONITOR_INTERVAL_SEC',
-  'MONITOR_TIMEOUT_MS', 'MONITOR_FAIL_THRESHOLD', 'MONITOR_WARN_MS', 'MONITOR_TYPES', 'IPTABLE_AUTO_ADD', 'IPTABLE_AUTO_REMOVE', 'XLSX_AUTO_SYNC'];
+  'MONITOR_TIMEOUT_MS', 'MONITOR_FAIL_THRESHOLD', 'MONITOR_WARN_MS', 'MONITOR_TYPES', 'XLSX_AUTO_SYNC'];
 const WRITABLE_SETTINGS = PUBLIC_SETTINGS;
 
 app.get('/api/settings', async (req, res) => {

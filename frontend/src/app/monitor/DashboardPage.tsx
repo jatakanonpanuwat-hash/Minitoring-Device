@@ -184,7 +184,7 @@ export function DashboardPage({ devices, monitor, onClose, onSelect }: Dashboard
 
   const offlineColor = findStatus(catalog, 'offline').color || '#dc2626';
   const daily = useMemo(() => (eventStats ? dailySeries(eventStats) : []), [eventStats]);
-  const totalDown = daily.reduce((a, d) => a + d.value, 0);
+  const totalDown = daily.reduce((a, d) => a + (d.value ?? 0), 0);
 
   const latencyBins = useMemo<ColumnDatum[]>(() => {
     const vals = devices
