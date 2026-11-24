@@ -6,25 +6,27 @@
 
 ```
 monitoring-device/
-├── backend/            Node.js + Express API
-│   ├── index.js        API + เสิร์ฟ frontend build (production)
-│   ├── package.json
-│   ├── .env.example
-│   └── uploads/        ไฟล์อัปโหลด (.gitkeep)
-├── frontend/           React + Vite + TypeScript + Tailwind
-│   └── src/
-│       ├── main.tsx
-│       ├── vite-env.d.ts
-│       ├── styles/         index.css, tailwind.css, theme.css, monitor.css
-│       └── app/
-│           ├── App.tsx
-│           ├── routes.tsx
-│           ├── components/ui/  UI primitives (button, card, input, utils)
-│           ├── monitor/        MonitorApp + TopBar, Rail, SlidePanel, Viewer, modals
-│           ├── types/          monitor.ts (Device, ประเภทอุปกรณ์, Log, Settings)
-│           └── utils/          monitorClient.ts
-└── gas/Code.gs         Google Apps Script template (log ลง Sheet)
+├── backend/                 Node.js + Express API
+│   ├── index.js             จุดเริ่ม → src/server.js
+│   ├── src/
+│   │   ├── server.js, app.js, config.js, auth.js
+│   │   ├── db/              MariaDB / โหมดไฟล์ / สร้างตาราง
+│   │   ├── models/          อ่าน-เขียนข้อมูล (อุปกรณ์, แผนผัง, log, ค่าตั้ง, ...)
+│   │   ├── services/        ตรวจอุปกรณ์อัตโนมัติ, Telegram, ซิงก์ Excel, สถานะเครือข่าย
+│   │   ├── routes/          HTTP API แยกตามกลุ่ม
+│   │   └── lib/             อ่าน .xlsx, รับไฟล์อัปโหลด
+│   ├── scripts/             seed / import (npm run ...)
+│   └── .env.example         ค่าตั้งทั้งหมดพร้อมคำอธิบาย
+├── frontend/                React + Vite + TypeScript + Tailwind
+│   └── src/app/
+│       ├── monitor/         MonitorApp + layout/ map/ devices/ pages/ settings/ shared/
+│       ├── types/monitor.ts type ของข้อมูลจาก API
+│       └── utils/monitorClient.ts  ฟังก์ชันเรียก API
+├── docs/ARCHITECTURE.md     อธิบายโครงสร้างโค้ด + วิธีเพิ่มฟีเจอร์ (อ่านก่อนแก้โค้ด)
+└── gas/Code.gs              Google Apps Script template (log ลง Sheet)
 ```
+
+**คนในทีมที่จะแก้โค้ด เริ่มอ่านที่ [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 
 Base path ของเว็บคือ `/monitoring-device/` (ดู `frontend/vite.config.ts` และ `routes.tsx` ถ้าจะเปลี่ยนต้องเปลี่ยนทั้ง 2 ที่ + backend fallback)
 
@@ -79,39 +81,55 @@ IP ของ mock ตั้งใจให้ได้สถานะต่า�
 
 ## API (backend)
 
-| Method | Path | หมายเหตุ |
-| ------ | ---- | -------- |
-| GET | `/api/health` | ตรวจสถานะ + เชื่อม DB |
-| GET | `/api/admin/check` | ตรวจรหัสผู้ดูแล (ต้องมี `x-admin-secret`) |
-| GET | `/api/devices` | รายการอุปกรณ์ (`?map_id=` กรองตามแผนผัง) |
-| GET | `/api/devices/:id` | อุปกรณ์ตัวเดียว |
-| POST | `/api/devices` | เพิ่มอุปกรณ์ (admin) + log + ping ทันที |
-| PUT | `/api/devices/:id` | แก้ไข/ย้ายอุปกรณ์ (admin) + log |
-| DELETE | `/api/devices/:id` | ลบอุปกรณ์ (admin) + log |
-| POST | `/api/devices/:id/ping` | ตรวจตัวเดียวทันทีด้วยวิธีของเครื่องนั้น |
-| GET | `/api/devices/:id/history?range=24h\|7d\|30d` | ประวัติผลตรวจรายชั่วโมง (30d ยุบเป็นรายวัน) — กราฟ uptime |
-| GET | `/api/devices/snapshots/years` | ปีที่มีสแนปช็อตรายการอุปกรณ์ + ปีปัจจุบัน |
-| GET | `/api/devices/snapshots?year=` | สแนปช็อตรายการอุปกรณ์ของปีนั้น (อ่านอย่างเดียว) |
-| POST | `/api/devices/snapshots` | บันทึกสแนปช็อตจากรายการปัจจุบัน (admin, `{ year }`, มีแล้ว = เขียนทับ) + log |
-| GET | `/api/monitor/status` | ค่าตั้ง monitor + เวลารอบล่าสุด |
-| POST | `/api/monitor/run` | สั่ง ping ทุกตัวตอนนี้ (admin) |
-| GET | `/api/catalog` | รายการประเภท / สถานะ / โซน |
-| PUT | `/api/catalog/:kind` | บันทึกรายการ `types` / `statuses` / `zones` (admin, body `{ items }`) — ลบรายการที่มีอุปกรณ์ใช้อยู่ไม่ได้ (409) |
-| POST | `/api/catalog/icon` | อัปโหลดไอคอน/โลโก้ (admin, multipart `image`, ≤512KB, รองรับ .svg) |
-| POST | `/api/import/xlsx` | อัปโหลดไฟล์ .xlsx ตรงจากหน้าเว็บ (admin, multipart `file`, `dry_run=1` = ดูสรุปก่อน) |
-| GET | `/api/maps` | รายการแผนผัง |
-| POST | `/api/maps` | อัปโหลดรูปแผนผัง (admin, multipart field `image`) |
-| POST | `/api/maps/:id/image` | เปลี่ยนรูปแผนผังเดิม (admin, multipart field `image`, อุปกรณ์/ตำแหน่งคงเดิม) |
-| PUT | `/api/maps/:id` | แก้ไขแผนผัง ชื่อ / ชั้น (admin) |
-| DELETE | `/api/maps/:id` | ลบแผนผัง (admin) |
-| GET | `/api/logs` | ประวัติ (`?limit=`, `?device_id=`) |
-| GET | `/api/settings` | ค่า Monitor / ซิงก์ Excel |
-| POST | `/api/settings` | บันทึกการตั้งค่า (admin) |
-| POST | `/api/devices/import` | นำเข้าอุปกรณ์ทั้งชุด (admin, body `{ type, devices }`) แทนที่เฉพาะ type นั้น + log ครั้งเดียว |
-| POST | `/api/maps/import` | นำเข้าแผนผังทั้งชุด (admin, body `{ maps }`) |
-| POST | `/api/logs/import` | นำเข้าประวัติทั้งชุด (admin, body `{ logs }`) |
+สิทธิ์: ว่าง = ทุกคน, **editor** = login แล้ว (Editor หรือ Admin), **admin** = Admin เท่านั้น — คอลัมน์ "ไฟล์" คือไฟล์ใน `backend/src/routes/`
 
-ถ้าตั้ง `ADMIN_SECRET` ใน `.env` งานที่แก้ข้อมูลต้องส่ง header `x-admin-secret` ให้ตรง และหน้าเว็บจะแสดงช่องรหัสผู้ดูแล — ไม่ได้ตั้ง = ไม่ต้องใส่รหัส (`GET /api/admin/mode` บอกว่าต้องใช้รหัสไหม)
+| Method | Path | สิทธิ์ | หมายเหตุ | ไฟล์ |
+| ------ | ---- | ---- | -------- | ---- |
+| GET | `/api/health` | | ตรวจสถานะ + เชื่อม DB | system |
+| GET | `/api/network` | | อินเทอร์เน็ต / WiFi / IP ของเครื่อง server + IP ผู้เปิดเว็บ (แถบล่าง) | system |
+| GET | `/api/admin/check` | admin | ตรวจรหัสผู้ดูแล (`x-admin-secret`) | system |
+| GET | `/api/admin/mode` | | หน้าเว็บต้องแสดงช่องรหัส/login ไหม | system |
+| GET | `/api/auth/me` | | ผู้ใช้ปัจจุบัน + ต้องสร้าง Admin คนแรกไหม | auth.js |
+| POST | `/api/auth/setup` | | สร้าง Admin คนแรก (ใช้ได้เฉพาะตอนยังไม่มีผู้ใช้) | auth.js |
+| POST | `/api/auth/login` | | เข้าสู่ระบบ → token (ผิด 5 ครั้ง = รอ 5 นาที) | auth.js |
+| POST | `/api/auth/password` | login | เปลี่ยนรหัสผ่านตัวเอง | auth.js |
+| GET/POST | `/api/users` | admin | รายชื่อ / เพิ่มผู้ใช้ | auth.js |
+| PUT/DELETE | `/api/users/:id` | admin | แก้ / ลบผู้ใช้ | auth.js |
+| GET | `/api/devices` | | รายการอุปกรณ์ (`?map_id=` กรองตามแผนผัง) | devices |
+| GET | `/api/devices/:id` | | อุปกรณ์ตัวเดียว | devices |
+| POST | `/api/devices` | editor | เพิ่มอุปกรณ์ + log + ping ทันที | devices |
+| PUT | `/api/devices/:id` | editor | แก้ไข/ย้ายอุปกรณ์ + log | devices |
+| DELETE | `/api/devices/:id` | editor | ลบอุปกรณ์ + log | devices |
+| POST | `/api/devices/:id/restore` | editor | กู้คืนอุปกรณ์ที่เพิ่งลบด้วย id เดิม (ปุ่ม "เลิกทำ") | devices |
+| POST | `/api/devices/:id/ping` | | ตรวจตัวเดียวทันทีด้วยวิธีของเครื่องนั้น | devices |
+| GET | `/api/devices/:id/history?range=24h\|7d\|30d` | | ประวัติผลตรวจรายชั่วโมง (30d ยุบเป็นรายวัน) — กราฟ uptime | devices |
+| GET | `/api/devices/snapshots/years` | | ปีที่มีสแนปช็อตรายการอุปกรณ์ + ปีปัจจุบัน | devices |
+| GET | `/api/devices/snapshots?year=` | | สแนปช็อตรายการอุปกรณ์ของปีนั้น (อ่านอย่างเดียว) | devices |
+| POST | `/api/devices/snapshots` | admin | บันทึกสแนปช็อตจากรายการปัจจุบัน (`{ year }`, มีแล้ว = เขียนทับ) + log | devices |
+| POST | `/api/devices/import` | admin | นำเข้าอุปกรณ์ทั้งชุด (`{ type, devices }`) แทนที่เฉพาะ type นั้น + log ครั้งเดียว | devices |
+| GET | `/api/monitor/status` | | ค่าตั้ง monitor + เวลารอบล่าสุด | monitor |
+| POST | `/api/monitor/run` | editor | สั่ง ping ทุกตัวตอนนี้ (ทำเบื้องหลัง) | monitor |
+| GET | `/api/monitor/progress?runId=&since=` | editor | ความคืบหน้า + ผลรายเครื่องของรอบล่าสุด | monitor |
+| GET | `/api/catalog` | | รายการประเภท / สถานะ / โซน | catalog |
+| PUT | `/api/catalog/:kind` | admin | บันทึกรายการ `types` / `statuses` / `zones` (`{ items }`) — ลบรายการที่มีอุปกรณ์ใช้อยู่ไม่ได้ (409) | catalog |
+| POST | `/api/catalog/icon` | admin | อัปโหลดไอคอน/โลโก้ (multipart `image`, ≤512KB, รองรับ .svg) | catalog |
+| POST | `/api/import/xlsx` | admin | อัปโหลดไฟล์ .xlsx (multipart `file`, `dry_run=1` = ดูสรุปก่อน, `source=project` = ใช้ไฟล์ในโปรเจกต์) | import |
+| GET | `/api/import/xlsx/status` | | สถานะซิงก์ Excel อัตโนมัติ | import |
+| GET | `/api/maps` | | รายการแผนผัง | maps |
+| POST | `/api/maps` | admin | อัปโหลดรูปแผนผัง (multipart `image`) | maps |
+| POST | `/api/maps/:id/image` | admin | เปลี่ยนรูปแผนผังเดิม (multipart `image`, อุปกรณ์/ตำแหน่งคงเดิม) | maps |
+| PUT | `/api/maps/:id` | admin | แก้ไขแผนผัง ชื่อ / ชั้น | maps |
+| DELETE | `/api/maps/:id` | admin | ลบแผนผัง | maps |
+| POST | `/api/maps/import` | admin | นำเข้าแผนผังทั้งชุด (`{ maps }`) | maps |
+| GET | `/api/logs` | | ประวัติ (`?limit=`, `?device_id=`) | logs |
+| GET | `/api/stats/events?days=` | | สถิติ offline/online รายวัน (หน้า Dashboard) | logs |
+| POST | `/api/logs/import` | admin | นำเข้าประวัติทั้งชุด (`{ logs }`) | logs |
+| GET | `/api/settings` | | ค่า Monitor / ซิงก์ Excel | settings |
+| POST | `/api/settings` | admin | บันทึกการตั้งค่า | settings |
+| GET/PUT | `/api/telegram` | admin | ค่าตั้งแจ้งเตือน Telegram (token ไม่ถูกส่งกลับ) | settings |
+| POST | `/api/telegram/test` | admin | ส่งข้อความทดสอบ | settings |
+
+ยังไม่มีผู้ใช้และไม่ได้ตั้ง `ADMIN_SECRET` = โหมดเปิด (ทุกคนแก้ได้) — header `x-admin-secret` ที่ตรงกับ `ADMIN_SECRET` ได้สิทธิ์ admin เสมอ (สคริปต์ import ใช้วิธีนี้)
 
 ## ระบบบันทึกและ Monitor อุปกรณ์ IT / เครือข่าย
 

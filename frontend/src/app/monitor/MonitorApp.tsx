@@ -26,20 +26,20 @@ import {
   uploadMap,
 } from '../utils/monitorClient';
 import { ConfirmProvider, confirmDialog } from '../components/ui/confirm';
-import { AddDeviceModal, type NewDeviceInput } from './AddDeviceModal';
-import { BottomBar } from './BottomBar';
-import { DashboardPage } from './DashboardPage';
-import { DeviceModal } from './DeviceModal';
-import { DeviceTablePage } from './DeviceTablePage';
-import { LogsPage } from './LogsPage';
-import { CatalogModal } from './CatalogModal';
-import { CatalogContext, EMPTY_CATALOG } from './catalog';
-import { Rail, type PageKind } from './Rail';
-import { SlidePanel } from './SlidePanel';
-import { SettingsPage, type MonitorForm } from './SettingsPage';
-import { TopBar, type ViewMode } from './TopBar';
-import { AuthContext, ChangePasswordModal, LoginModal, UserMenu, type AuthInfo } from './auth';
-import { Viewer } from './Viewer';
+import { AddDeviceModal, type NewDeviceInput } from './devices/AddDeviceModal';
+import { BottomBar } from './layout/BottomBar';
+import { DashboardPage } from './pages/DashboardPage';
+import { DeviceModal } from './devices/DeviceModal';
+import { DeviceTablePage } from './pages/DeviceTablePage';
+import { LogsPage } from './pages/LogsPage';
+import { CatalogModal } from './settings/CatalogModal';
+import { CatalogContext, EMPTY_CATALOG } from './shared/catalog';
+import { Rail, type PageKind } from './layout/Rail';
+import { SlidePanel } from './layout/SlidePanel';
+import { SettingsPage, type MonitorForm } from './pages/SettingsPage';
+import { TopBar, type ViewMode } from './layout/TopBar';
+import { AuthContext, ChangePasswordModal, LoginModal, UserMenu, type AuthInfo } from './shared/auth';
+import { Viewer } from './map/Viewer';
 
 type ModalKind = 'device' | 'catalog' | null;
 

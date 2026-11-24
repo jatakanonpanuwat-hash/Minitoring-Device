@@ -6,9 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "seed": "node seed-mock.js",
-    "import:sheet": "node import-from-sheet.js",
-    "import:xlsx": "node import-from-xlsx.js"
+    "seed": "node scripts/seed-mock.js",
+    "import:sheet": "node scripts/import-from-sheet.js",
+    "import:xlsx": "node scripts/import-from-xlsx.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
