@@ -49,6 +49,31 @@ const uploadXlsxField = singleFileField({
   sizeError: `ไฟล์ใหญ่เกิน ${XLSX_MAX_MB}MB`,
 });
 
+// คู่มือการใช้งาน (field "file") — ไฟล์ใหญ่ได้ (วิดีโอ) จึงเขียนลงดิสก์ตรง ๆ ไม่พักในหน่วยความจำ
+const TUTORIAL_EXTS = ['.pdf', ...IMAGE_EXTS, '.mp4', '.webm', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt'];
+const TUTORIAL_MAX_MB = 300;
+const tutorialUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      cb(null, UPLOADS_DIR);
+    },
+    filename: (req, file, cb) => cb(null, `tutorial-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: TUTORIAL_MAX_MB * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (TUTORIAL_EXTS.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
+    else cb(new Error(`รองรับเฉพาะไฟล์ ${TUTORIAL_EXTS.join(' ')}`));
+  },
+});
+function uploadTutorialField(req, res, next) {
+  tutorialUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    // ไฟล์ที่เขียนไปครึ่งทาง (เกินขนาด / ตัดการเชื่อมต่อ) multer ลบให้เอง
+    res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? `ไฟล์ใหญ่เกิน ${TUTORIAL_MAX_MB}MB` : err.message });
+  });
+}
+
 // บันทึกไฟล์เป็น <prefix>-<uuid><ext> — คืน { filename, url }
 function saveUpload(prefix, ext, buffer) {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -69,4 +94,7 @@ function removeUpload(url, keepFilename) {
   }
 }
 
-module.exports = { uploadImageField, uploadIconField, uploadXlsxField, saveUpload, removeUpload };
+module.exports = {
+  uploadImageField, uploadIconField, uploadXlsxField, uploadTutorialField, TUTORIAL_EXTS, TUTORIAL_MAX_MB,
+  saveUpload, removeUpload,
+};

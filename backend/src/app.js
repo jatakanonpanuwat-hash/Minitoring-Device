@@ -20,6 +20,7 @@ const ROUTES = [
   require('./routes/maps'),
   require('./routes/logs'),
   require('./routes/settings'),
+  require('./routes/tutorials'),
 ];
 
 const app = express();
@@ -35,9 +36,11 @@ app.use(express.json({ limit: '10mb' }));
 
 // ไฟล์ที่อัปโหลด (รูปแผนผัง / ไอคอน)
 // CSP sandbox: ไฟล์ที่อัปโหลด (รวม .svg ของไอคอน) ห้ามรันสคริปต์แม้เปิด URL ตรง ๆ
+// ยกเว้น PDF ของคู่มือ (tutorial-*.pdf): Chrome ไม่ยอมแสดง PDF ในหน้าที่ติด sandbox — ตัวเปิด PDF ของเบราว์เซอร์ไม่รันสคริปต์ในไฟล์อยู่แล้ว
 app.use('/api/uploads', express.static(UPLOADS_DIR, {
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (/^tutorial-[0-9a-f-]+\.pdf$/i.test(path.basename(filePath))) return;
     res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
   }
 }));

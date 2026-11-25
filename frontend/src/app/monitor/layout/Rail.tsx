@@ -1,4 +1,4 @@
-import { History, LayoutDashboard, Map as MapIcon, Settings, Table } from 'lucide-react';
+import { BookOpen, History, LayoutDashboard, Map as MapIcon, Settings, Table } from 'lucide-react';
 import { cn } from '../../components/ui/utils';
 import { useAuth } from '../shared/auth';
 
@@ -10,11 +10,12 @@ interface RailProps {
   page: PageKind;
   onOpenDashboard: () => void;
   onOpenSettings: () => void;
+  onOpenTutorial: () => void;
 }
 
-export type PageKind = 'map' | 'dashboard' | 'table' | 'logs' | 'settings';
+export type PageKind = 'map' | 'dashboard' | 'table' | 'logs' | 'tutorial' | 'settings';
 
-export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, page, onOpenDashboard, onOpenSettings }: RailProps) {
+export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, page, onOpenDashboard, onOpenSettings, onOpenTutorial }: RailProps) {
   const { isAdmin } = useAuth();
   return (
     <nav className="rail">
@@ -49,6 +50,14 @@ export function Rail({ panelOpen, onPanel, onOpenTable, onOpenLogs, page, onOpen
       >
         <History />
         <span>Log</span>
+      </button>
+      <button
+        className={cn('rail-btn', page === 'tutorial' && 'active')}
+        title="Tutorial - คู่มือการใช้งาน"
+        onClick={onOpenTutorial}
+      >
+        <BookOpen />
+        <span>Tutorial</span>
       </button>
       {isAdmin && (
       <button

@@ -32,6 +32,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DeviceModal } from './devices/DeviceModal';
 import { DeviceTablePage } from './pages/DeviceTablePage';
 import { LogsPage } from './pages/LogsPage';
+import { TutorialPage } from './pages/TutorialPage';
 import { CatalogModal } from './settings/CatalogModal';
 import { CatalogContext, EMPTY_CATALOG } from './shared/catalog';
 import { Rail, type PageKind } from './layout/Rail';
@@ -680,6 +681,7 @@ export function MonitorApp() {
         page={page}
         onOpenDashboard={() => togglePage('dashboard')}
         onOpenSettings={() => togglePage('settings')}
+        onOpenTutorial={() => togglePage('tutorial')}
       />
       <main className="main-area">
         {page === 'dashboard' ? (
@@ -704,6 +706,8 @@ export function MonitorApp() {
               getCatalog().then(setCatalog).catch(() => {});
             }}
           />
+        ) : page === 'tutorial' ? (
+          <TutorialPage secret={secret} onClose={() => setPage('map')} />
         ) : page === 'logs' ? (
           <LogsPage onClose={() => setPage('map')} />
         ) : page === 'table' ? (

@@ -36,7 +36,8 @@ backend/
 │   │   ├── history.js    ผลตรวจรายชั่วโมง (กราฟ uptime)
 │   │   ├── snapshots.js  สแนปช็อตรายการอุปกรณ์รายปี
 │   │   ├── catalog.js    รายการ ประเภท / สถานะ / โซน
-│   │   └── settings.js   ค่าตั้งระบบ (key/value) + ค่าเริ่มต้น
+│   │   ├── settings.js   ค่าตั้งระบบ (key/value) + ค่าเริ่มต้น
+│   │   └── tutorials.js  รายการคู่มือ (เก็บเป็น JSON ในค่าตั้ง TUTORIALS — ไม่มีตาราง)
 │   ├── services/         งานที่ไม่ใช่แค่อ่าน-เขียนข้อมูล
 │   │   ├── checks.js     ตรวจอุปกรณ์ 1 ครั้ง: ping / TCP / SNMP
 │   │   ├── monitor.js    รอบตรวจอัตโนมัติ + ตัดสินสถานะ online / warning / offline
@@ -52,7 +53,8 @@ backend/
 │   │   ├── catalog.js    /api/catalog/**
 │   │   ├── maps.js       /api/maps/**
 │   │   ├── logs.js       /api/logs/**, /api/stats/events
-│   │   └── settings.js   /api/settings, /api/telegram/**
+│   │   ├── settings.js   /api/settings, /api/telegram/**
+│   │   └── tutorials.js  /api/tutorials/** (คู่มือ — ไฟล์อยู่ใน uploads/tutorial-*)
 │   └── lib/
 │       ├── xlsx.js       ตัวอ่านไฟล์ .xlsx (ไม่ใช้ package)
 │       ├── xlsx-writer.js  ตัวเขียนไฟล์ .xlsx (ไม่ใช้ package)
@@ -102,7 +104,7 @@ src/
 │       ├── layout/           โครงหน้าจอ: TopBar, Rail (เมนูซ้าย), SlidePanel (รายการข้างแผนผัง), BottomBar
 │       ├── map/              แผนผัง: Viewer (ซูม/ลาก/หมุด), PlacePanel (ฟอร์มวางอุปกรณ์), DirectionDial (ทิศกล้อง), ExportMapDialog (ตั้งค่า Export รูป) + exportMapImage (วาดรูปพร้อมหมุด) + exportLayout (จัดหมุด/ป้ายไม่ให้ซ้อน)
 │       ├── devices/          ฟอร์มและหน้าต่างอุปกรณ์: DeviceModal, AddDeviceModal, DeviceHistory (กราฟ) + ช่องกรอกที่ใช้ร่วมกัน
-│       ├── pages/            หน้าเต็มจอ: Dashboard, ตารางอุปกรณ์, Log, Settings
+│       ├── pages/            หน้าเต็มจอ: Dashboard, ตารางอุปกรณ์, Log, Tutorial (คู่มือ), Settings
 │       ├── settings/         ส่วนย่อยของหน้า Settings: จัดการรายการ, Excel, ผู้ใช้, Telegram, Ping ทั้งหมด
 │       └── shared/           ใช้หลายที่: auth (login/สิทธิ์), catalog (ไอคอน/สี/ป้ายสถานะ), ColumnChart
 └── styles/monitor.css        สไตล์ทั้งแอป (class ขึ้นต้นด้วย .cctv-app)

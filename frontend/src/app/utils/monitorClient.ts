@@ -406,3 +406,73 @@ export async function testTelegram(data: { token?: string; chatId?: string }): P
     body: JSON.stringify(data),
   });
 }
+
+// ---------- คู่มือการใช้งาน (เมนู Tutorial) ----------
+export interface Tutorial {
+  id: string;
+  title: string;
+  description: string;
+  file_url: string;
+  file_name: string;
+  /** นามสกุลไฟล์ (ไม่มีจุด) เช่น pdf, mp4 */
+  ext: string;
+  size: number;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export async function getTutorials(): Promise<Tutorial[]> {
+  return request<Tutorial[]>('api/tutorials');
+}
+
+export async function getTutorialLimits(): Promise<{ exts: string[]; max_mb: number }> {
+  return request<{ exts: string[]; max_mb: number }>('api/tutorials/limits');
+}
+
+/** อัปโหลดคู่มือ — ใช้ XHR เพื่อแสดงความคืบหน้า (ไฟล์วิดีโออาจใหญ่) */
+export function uploadTutorial(
+  file: File,
+  meta: { title: string; description: string },
+  adminSecret: string,
+  onProgress?: (pct: number) => void,
+): Promise<Tutorial> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('title', meta.title);
+    form.append('description', meta.description);
+    form.append('file', file); // ฟิลด์ข้อความก่อนไฟล์ — multer อ่าน title ได้ครบ
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}api/tutorials`);
+    if (authToken) xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+    if (adminSecret) xhr.setRequestHeader('x-admin-secret', adminSecret);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => {
+      let body: { error?: string } | null = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        /* ไม่ใช่ JSON */
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && body) resolve(body as Tutorial);
+      else {
+        if (xhr.status === 401 && authToken && onUnauthorized) onUnauthorized();
+        reject(new Error(body?.error || `อัปโหลดไม่สำเร็จ (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('อัปโหลดไม่สำเร็จ — การเชื่อมต่อขาด'));
+    xhr.send(form);
+  });
+}
+
+export async function updateTutorial(id: string, patch: { title?: string; description?: string }, adminSecret: string): Promise<Tutorial> {
+  return request<Tutorial>(`api/tutorials/${id}`, { method: 'PUT', headers: adminHeaders(adminSecret), body: JSON.stringify(patch) });
+}
+
+export async function reorderTutorials(ids: string[], adminSecret: string): Promise<Tutorial[]> {
+  return request<Tutorial[]>('api/tutorials/order', { method: 'PUT', headers: adminHeaders(adminSecret), body: JSON.stringify({ ids }) });
+}
+
+export async function deleteTutorial(id: string, adminSecret: string): Promise<void> {
+  await request<{ ok: boolean }>(`api/tutorials/${id}`, { method: 'DELETE', headers: { 'x-admin-secret': adminSecret } });
+}

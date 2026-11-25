@@ -129,6 +129,12 @@ IP ของ mock ตั้งใจให้ได้สถานะต่า�
 | POST | `/api/settings` | admin | บันทึกการตั้งค่า | settings |
 | GET/PUT | `/api/telegram` | admin | ค่าตั้งแจ้งเตือน Telegram (token ไม่ถูกส่งกลับ) | settings |
 | POST | `/api/telegram/test` | admin | ส่งข้อความทดสอบ | settings |
+| GET | `/api/tutorials` | | รายการคู่มือ (เมนู Tutorial) | tutorials |
+| GET | `/api/tutorials/limits` | | ชนิดไฟล์ / ขนาดที่อัปโหลดได้ | tutorials |
+| POST | `/api/tutorials` | admin | อัปโหลดคู่มือ (multipart `file` + `title`, `description`) — PDF, รูป, .mp4/.webm, Office, .txt ไม่เกิน 300MB | tutorials |
+| PUT | `/api/tutorials/:id` | admin | แก้ชื่อ / คำอธิบาย | tutorials |
+| PUT | `/api/tutorials/order` | admin | เรียงลำดับ (`{ ids }`) | tutorials |
+| DELETE | `/api/tutorials/:id` | admin | ลบคู่มือ + ไฟล์ | tutorials |
 
 ยังไม่มีผู้ใช้และไม่ได้ตั้ง `ADMIN_SECRET` = โหมดเปิด (ทุกคนแก้ได้) — header `x-admin-secret` ที่ตรงกับ `ADMIN_SECRET` ได้สิทธิ์ admin เสมอ (สคริปต์ import ใช้วิธีนี้)
 
