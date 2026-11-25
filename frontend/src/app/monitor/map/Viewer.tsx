@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Lock, Maximize, Minus, Move, Plus, X } from 'lucide-react';
+import { Check, ImageDown, Lock, Maximize, Minus, Move, Plus, X } from 'lucide-react';
 import { cn } from '../../components/ui/utils';
 import { formatAgo } from '../../types/monitor';
 import type { Device, MapItem } from '../../types/monitor';
 import type { ViewMode } from '../layout/TopBar';
 import { DEFAULT_FOV, angleFrom, fovPath, isCameraLike } from './DirectionDial';
+import { ExportMapDialog } from './ExportMapDialog';
 import { EMPTY_PLACE_FORM, PlacePanel, type PlaceForm } from './PlacePanel';
 import { useAuth } from '../shared/auth';
 import { CatalogIcon, StatusPill, findStatus, findType, findZone, resolveUploadUrl, useCatalog } from '../shared/catalog';
@@ -71,6 +72,10 @@ export function Viewer(props: ViewerProps) {
   const [rotating, setRotating] = useState<{ id: string; dir: number; fov: number } | null>(null);
   const catalog = useCatalog();
   const { canEdit, requestLogin } = useAuth();
+
+  // ---------- Export รูปแผนผังพร้อมหมุด (อุปกรณ์ที่แสดงอยู่ตามตัวกรองปัจจุบัน) ----------
+  // เก็บรายการอุปกรณ์ ณ ตอนกดไว้ — ไม่ให้รูปตัวอย่างโหลดใหม่ทุกครั้งที่ข้อมูลรีเฟรช
+  const [exportDevices, setExportDevices] = useState<Device[] | null>(null);
 
   // ---------- วางอุปกรณ์ใหม่ (แผง PlacePanel) ----------
   // ประเภทเริ่มต้น = ประเภทที่ใช้ครั้งล่าสุด → camera → ประเภทแรก
@@ -772,7 +777,20 @@ export function Viewer(props: ViewerProps) {
               )}
             </>
           )}
+          {mode === 'view' && (
+            <button
+              className="map-tool"
+              title="บันทึกแผนผังเป็นรูปพร้อมหมุดอุปกรณ์ที่แสดงอยู่ (ตามตัวกรอง) — ตั้งขนาดหมุด / ชื่อไฟล์ / นามสกุลได้"
+              onClick={() => setExportDevices(devices)}
+            >
+              <ImageDown /> Export รูป
+            </button>
+          )}
         </div>
+      )}
+
+      {map && exportDevices && (
+        <ExportMapDialog map={map} devices={exportDevices} catalog={catalog} onClose={() => setExportDevices(null)} />
       )}
 
       {map && (

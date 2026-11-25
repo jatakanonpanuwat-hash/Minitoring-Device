@@ -4,8 +4,9 @@ import { Archive, Camera, ChevronDown, ChevronUp, Download, LayoutGrid, List, Ma
 import { confirmDialog } from '../../components/ui/confirm';
 import { cn } from '../../components/ui/utils';
 import { formatAgo, needsPlacement } from '../../types/monitor';
-import type { Catalog, Device, DeviceSnapshot, DeviceSnapshotYearsInfo } from '../../types/monitor';
+import type { Device, DeviceSnapshot, DeviceSnapshotYearsInfo } from '../../types/monitor';
 import { getDeviceSnapshot, getDeviceSnapshotYears, saveDeviceSnapshot } from '../../utils/monitorClient';
+import { ExportCsvDialog } from '../devices/ExportCsvDialog';
 import { useAuth } from '../shared/auth';
 import { CatalogIcon, StatusPill, ZoneTag, findStatus, findType, findZone, useCatalog } from '../shared/catalog';
 
@@ -20,34 +21,6 @@ interface DeviceTablePageProps {
   onPlace: (d: Device) => void;
   /** เปิดฟอร์มเพิ่มอุปกรณ์ (ไม่ต้องคลิกบนแผนผัง) */
   onAdd: () => void;
-}
-
-function toCsv(devices: Device[], c: Catalog): string {
-  const cols: (keyof Device)[] = ['name', 'device_type', 'status', 'ip_address', 'mac_address', 'brand', 'model',
-    'serial_no', 'zone', 'floor', 'lan', 'cabinet', 'last_latency_ms', 'last_seen', 'remark'];
-  // แปลง key เป็นชื่อที่อ่านได้
-  const value = (d: Device, col: keyof Device) =>
-    col === 'device_type' ? findType(c, d.device_type).label
-      : col === 'status' ? findStatus(c, d.status).label
-      : col === 'zone' ? findZone(c, d.zone)?.label ?? ''
-      : d[col];
-  // กันสูตร Excel (=, +, -, @) ในข้อมูลที่ผู้ใช้กรอก
-  const esc = (v: unknown) => {
-    let t = String(v ?? '');
-    if (/^[=+\-@]/.test(t)) t = `'${t}`;
-    return `"${t.replace(/"/g, '""')}"`;
-  };
-  return [cols.join(','), ...devices.map((d) => cols.map((col) => esc(value(d, col))).join(','))].join('\r\n');
-}
-
-function downloadCsv(devices: Device[], c: Catalog, nameSuffix = '') {
-  // BOM ให้ Excel อ่านภาษาไทยถูก
-  const blob = new Blob(['﻿' + toCsv(devices, c)], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `devices-${new Date().toISOString().slice(0, 10)}${nameSuffix}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 type View = 'card' | 'list';
@@ -156,6 +129,7 @@ export function DeviceTablePage({ devices: all, totalAll, filtered, secret, onCl
   const [onlyUnplaced, setOnlyUnplaced] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   const [view, setViewState] = useState<View>(() => loadPref<View>(VIEW_KEY, ['card', 'list'], 'card'));
   const [groupBy, setGroupByState] = useState<GroupBy>(() => loadPref<GroupBy>(GROUP_KEY, ['lan', 'type', 'zone', 'cabinet'], 'lan'));
@@ -339,7 +313,7 @@ export function DeviceTablePage({ devices: all, totalAll, filtered, secret, onCl
                 <Plus size={14} /> เพิ่มอุปกรณ์
               </button>
             )}
-            <button className="btn btn-dark btn-sm" onClick={() => downloadCsv(devices, catalog, isSnapshot && snapYear != null ? `-snap${snapYear}` : '')} disabled={devices.length === 0}>
+            <button className="btn btn-dark btn-sm" onClick={() => setCsvOpen(true)} disabled={base.length === 0} title="เลือกประเภท / โซน / สถานะที่จะส่งออก">
               <Download size={14} /> Export CSV
             </button>
             <button className="btn btn-dark btn-sm dash-back" onClick={onClose} title="กลับไปที่แผนผัง">
@@ -347,6 +321,18 @@ export function DeviceTablePage({ devices: all, totalAll, filtered, secret, onCl
             </button>
           </span>
         </h2>
+        {csvOpen && (
+          <ExportCsvDialog
+            devices={base}
+            initial={{
+              type: groupBy === 'type' && groupFilter != null ? [groupFilter] : undefined,
+              zone: groupBy === 'zone' && groupFilter != null ? [groupFilter] : undefined,
+              status: statusFilter ? [statusFilter] : undefined,
+            }}
+            nameSuffix={isSnapshot && snapYear != null ? `-snap${snapYear}` : ''}
+            onClose={() => setCsvOpen(false)}
+          />
+        )}
         {snapNotice && <div className="notice ok" style={{ marginBottom: 12 }}>{snapNotice}</div>}
         {snapError && <div className="notice error" style={{ marginBottom: 12 }}>{snapError}</div>}
         {isSnapshot && snapLoading && <div className="notice" style={{ marginBottom: 12 }}>กำลังโหลดสแนปช็อตปี {snapYear}...</div>}

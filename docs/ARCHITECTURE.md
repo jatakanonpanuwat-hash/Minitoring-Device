@@ -100,7 +100,7 @@ src/
 │   └── monitor/
 │       ├── MonitorApp.tsx    ตัวหลัก: ถือ state ทั้งหมด (อุปกรณ์, แผนผัง, หน้าปัจจุบัน, modal) แล้วส่งลงไป
 │       ├── layout/           โครงหน้าจอ: TopBar, Rail (เมนูซ้าย), SlidePanel (รายการข้างแผนผัง), BottomBar
-│       ├── map/              แผนผัง: Viewer (ซูม/ลาก/หมุด), PlacePanel (ฟอร์มวางอุปกรณ์), DirectionDial (ทิศกล้อง)
+│       ├── map/              แผนผัง: Viewer (ซูม/ลาก/หมุด), PlacePanel (ฟอร์มวางอุปกรณ์), DirectionDial (ทิศกล้อง), ExportMapDialog (ตั้งค่า Export รูป) + exportMapImage (วาดรูปพร้อมหมุด) + exportLayout (จัดหมุด/ป้ายไม่ให้ซ้อน)
 │       ├── devices/          ฟอร์มและหน้าต่างอุปกรณ์: DeviceModal, AddDeviceModal, DeviceHistory (กราฟ) + ช่องกรอกที่ใช้ร่วมกัน
 │       ├── pages/            หน้าเต็มจอ: Dashboard, ตารางอุปกรณ์, Log, Settings
 │       ├── settings/         ส่วนย่อยของหน้า Settings: จัดการรายการ, Excel, ผู้ใช้, Telegram, Ping ทั้งหมด
