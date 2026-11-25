@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '../../components/ui/utils';
 import { formatAgo, type MonitorStatus } from '../../types/monitor';
 import { getNetworkInfo, type NetworkInfo } from '../../utils/monitorClient';
@@ -54,57 +55,124 @@ function useNetworkInfo() {
 
 export function BottomBar({ connected, deviceCount, mapName, mode, zoom, monitor }: BottomBarProps) {
   const { info, browserOnline } = useNetworkInfo();
+  const [netOpen, setNetOpen] = useState(false);
   const server = info?.server;
-  const primaryIp = server?.ips[0]?.address;
-  const allIps = server?.ips.map((i) => `${i.iface}: ${i.address}`).join('\n') || '';
   const wifi = server?.wifi;
+
+  // ปิดป๊อปอัพเมื่อคลิกข้างนอก / กด Esc (ดักที่ document ก่อน window — ไม่ให้ Esc ไปยกเลิกโหมดบนแผนผังด้วย)
+  useEffect(() => {
+    if (!netOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.('.net-dropdown, .net-btn')) setNetOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setNetOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [netOpen]);
+
+  const netBad = !browserOnline || (server != null && !server.internet.online);
 
   return (
     <footer className="bottom-bar">
-      <span className={cn('conn', !connected && 'bad')}>
-        <span className="dot" />
-        {connected ? 'backend connected' : 'backend disconnected'}
-      </span>
-      {server && (
-        <span
-          className={cn('conn', !server.internet.online && 'bad')}
-          title="สถานะอินเทอร์เน็ตของเครื่อง server (ทดสอบเชื่อมต่อ 1.1.1.1 / 8.8.8.8)"
-        >
-          <span className="dot" />
-          {server.internet.online ? `Internet ${server.internet.latencyMs ?? '-'} ms` : 'Internet offline'}
-        </span>
+      <div className="bottom-bar-inner">
+        <div className="bar-group">
+          <span className="bar-group-label">การเชื่อมต่อ</span>
+          <span className={cn('conn', !connected && 'bad')}>
+            <span className="dot" />
+            {connected ? 'backend connected' : 'backend disconnected'}
+          </span>
+          <button
+            type="button"
+            className={cn('net-btn', info ? netBad && 'bad' : 'unknown')}
+            onClick={() => setNetOpen(!netOpen)}
+            aria-expanded={netOpen}
+            title="ข้อมูลเครือข่าย: เน็ต/WiFi/IP เครื่อง server + IP เครื่องคุณ"
+          >
+            <span className="dot" />
+            เครือข่าย
+            <ChevronDown size={12} />
+          </button>
+        </div>
+        <span className="bar-divider" />
+        <div className="bar-group">
+          <span className="bar-group-label">มอนิเตอร์</span>
+          <span>
+            อุปกรณ์ <span className="mono">{deviceCount}</span> ตัว
+          </span>
+          {monitor && (
+            <span>
+              {monitor.enabled
+                ? `ping ทุก ${monitor.intervalSec} วิ. • รอบล่าสุด ${formatAgo(monitor.lastRunAt)} (${monitor.checked} เครื่อง)`
+                : 'ping อัตโนมัติ: ปิด'}
+            </span>
+          )}
+        </div>
+        <span className="spacer" />
+        <div className="bar-group">
+          <span className="bar-group-label">มุมมอง</span>
+          {mapName && <span>แผนที่: {mapName}</span>}
+          <span>{modeLabel[mode]}</span>
+          <span className="mono">{Math.round(zoom * 100)}%</span>
+        </div>
+      </div>
+      {netOpen && (
+        <div className="net-dropdown" role="dialog" aria-label="ข้อมูลเครือข่าย">
+          <div className="net-row">
+            <span className="net-row-label">อินเทอร์เน็ต (server)</span>
+            {server ? (
+              <span className={cn('conn', !server.internet.online && 'bad')} title="ทดสอบเชื่อมต่อ 1.1.1.1 / 8.8.8.8">
+                <span className="dot" />
+                {server.internet.online ? `${server.internet.latencyMs ?? '-'} ms` : 'offline'}
+              </span>
+            ) : (
+              <span className="hint">กำลังโหลด…</span>
+            )}
+          </div>
+          <div className="net-row">
+            <span className="net-row-label">WiFi (server)</span>
+            {wifi ? (
+              <span>{wifi.connected ? `${wifi.ssid || '-'}${wifi.signal != null ? ` (${wifi.signal}%)` : ''}` : 'ไม่ได้เชื่อมต่อ'}</span>
+            ) : (
+              <span className="hint">—</span>
+            )}
+          </div>
+          <div className="net-row">
+            <span className="net-row-label">Server</span>
+            {server ? (
+              <span className="net-server">
+                <b>{server.hostname}</b>
+                {server.ips.map((i) => (
+                  <span key={`${i.iface}:${i.address}`} className="mono">
+                    {i.iface}: {i.address}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className="hint">กำลังโหลด…</span>
+            )}
+          </div>
+          <div className="net-row">
+            <span className="net-row-label">เครื่องคุณ</span>
+            {info ? (
+              <span className={cn('mono', !browserOnline && 'net-bad')}>
+                {info.client.ip}
+                {!browserOnline && ' (ออฟไลน์)'}
+              </span>
+            ) : (
+              <span className="hint">กำลังโหลด…</span>
+            )}
+          </div>
+        </div>
       )}
-      {wifi && (
-        <span title="WiFi ของเครื่อง server">
-          WiFi: {wifi.connected ? `${wifi.ssid || '-'}${wifi.signal != null ? ` (${wifi.signal}%)` : ''}` : 'ไม่ได้เชื่อมต่อ'}
-        </span>
-      )}
-      {server && (
-        <span title={`เครื่อง server: ${server.hostname}\n${allIps}`}>
-          Server: <span className="mono">{primaryIp || '-'}</span>
-          {server.ips.length > 1 && <span className="mono"> +{server.ips.length - 1}</span>}
-        </span>
-      )}
-      {info && (
-        <span className={cn(!browserOnline && 'net-bad')} title="IP ของเครื่องที่เปิดหน้าเว็บนี้ (ตามที่ server เห็น)">
-          เครื่องคุณ: <span className="mono">{info.client.ip}</span>
-          {!browserOnline && ' (ออฟไลน์)'}
-        </span>
-      )}
-      <span>
-        อุปกรณ์ <span className="mono">{deviceCount}</span> ตัว
-      </span>
-      {monitor && (
-        <span>
-          {monitor.enabled
-            ? `ping ทุก ${monitor.intervalSec} วิ. • รอบล่าสุด ${formatAgo(monitor.lastRunAt)} (${monitor.checked} เครื่อง)`
-            : 'ping อัตโนมัติ: ปิด'}
-        </span>
-      )}
-      {mapName && <span>แผนที่: {mapName}</span>}
-      <span className="spacer" />
-      <span>{modeLabel[mode]}</span>
-      <span className="mono">{Math.round(zoom * 100)}%</span>
     </footer>
   );
 }
