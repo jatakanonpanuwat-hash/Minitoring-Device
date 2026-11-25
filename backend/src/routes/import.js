@@ -10,6 +10,7 @@ const { getSetting } = require('../models/settings');
 const { listDevices } = require('../models/devices');
 const { listMaps } = require('../models/maps');
 const { xlsxSync, applyWorkbook, markSynced } = require('../services/xlsx-sync');
+const { buildCameraTemplate } = require('../services/xlsx-template');
 
 module.exports = ({ requireAdmin }) => {
   const router = express.Router();
@@ -57,6 +58,24 @@ module.exports = ({ requireAdmin }) => {
       res.status(500).json({ error: `นำเข้าล้มเหลว: ${err.message}` });
     } finally {
       xlsxSync.importing = false;
+    }
+  });
+
+  // ดาวน์โหลดเทมเพลตกรอกข้อมูลกล้อง — data=1 ใส่กล้อง/แผนผังปัจจุบันไว้ด้วย (สิทธิ์เท่ากับ GET /api/devices)
+  router.get('/api/import/xlsx/template', async (req, res) => {
+    const withData = ['1', 'true'].includes(String(req.query.data || '').toLowerCase());
+    try {
+      const buf = await buildCameraTemplate({ withData });
+      const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="camera-${withData ? 'data' : 'template'}-${day}.xlsx"`,
+        'Cache-Control': 'no-store',
+      });
+      res.send(buf);
+    } catch (err) {
+      console.error('Build xlsx template error:', err);
+      res.status(500).json({ error: `สร้างเทมเพลตไม่ได้: ${err.message}` });
     }
   });
 

@@ -352,6 +352,11 @@ export interface XlsxImportSummary {
   };
 }
 
+/** ลิงก์ดาวน์โหลดเทมเพลต Excel กรอกข้อมูลกล้อง — withData = ใส่กล้อง/แผนผังปัจจุบันไว้ด้วย */
+export function xlsxTemplateUrl(withData: boolean): string {
+  return `${BASE}api/import/xlsx/template${withData ? '?data=1' : ''}`;
+}
+
 export async function importXlsx(
   file: File | 'project', // 'project' = อ่าน backend/data/CCTV-MECHA-PART.xlsx ในโปรเจกต์
   opts: { cameras: boolean; dryRun: boolean },

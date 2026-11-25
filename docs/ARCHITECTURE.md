@@ -42,6 +42,7 @@ backend/
 │   │   ├── monitor.js    รอบตรวจอัตโนมัติ + ตัดสินสถานะ online / warning / offline
 │   │   ├── telegram.js   แจ้งเตือน Telegram (รวมทั้งรอบเป็นข้อความเดียว)
 │   │   ├── xlsx-sync.js  นำเข้ากล้องจาก Excel + เฝ้าไฟล์ซิงก์อัตโนมัติ
+│   │   ├── xlsx-template.js  สร้างเทมเพลต Excel กรอกข้อมูลกล้อง (คอลัมน์ต้องตรงกับ toDevice ใน lib/xlsx.js)
 │   │   └── network.js    สถานะเน็ต / WiFi / IP ของ server (แถบล่างของเว็บ)
 │   ├── routes/           HTTP API — 1 ไฟล์ต่อ 1 กลุ่ม (เขียน path เต็ม /api/... ค้นด้วย Ctrl+Shift+F ได้เลย)
 │   │   ├── system.js     /api/health, /api/network, /api/admin/*
@@ -54,6 +55,7 @@ backend/
 │   │   └── settings.js   /api/settings, /api/telegram/**
 │   └── lib/
 │       ├── xlsx.js       ตัวอ่านไฟล์ .xlsx (ไม่ใช้ package)
+│       ├── xlsx-writer.js  ตัวเขียนไฟล์ .xlsx (ไม่ใช้ package)
 │       └── uploads.js    รับไฟล์อัปโหลด (multer) + บันทึก/ลบใน uploads/
 ├── scripts/              สคริปต์ที่รันด้วยมือ (เรียก API ของ backend ที่รันอยู่)
 │   ├── seed-mock.js          npm run seed

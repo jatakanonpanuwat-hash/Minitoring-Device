@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileSpreadsheet, FolderOpen, RefreshCw } from 'lucide-react';
-import { getXlsxSyncStatus, importXlsx, saveSettings, type XlsxImportSummary, type XlsxSyncStatus } from '../../utils/monitorClient';
+import { Download, FileSpreadsheet, FolderOpen, RefreshCw } from 'lucide-react';
+import {
+  getXlsxSyncStatus,
+  importXlsx,
+  saveSettings,
+  xlsxTemplateUrl,
+  type XlsxImportSummary,
+  type XlsxSyncStatus,
+} from '../../utils/monitorClient';
 import { confirmDialog } from '../../components/ui/confirm';
 import { formatAgo } from '../../types/monitor';
 
@@ -143,6 +150,20 @@ export function ExcelImport({ secret, onImported }: ExcelImportProps) {
           </p>
         </div>
       )}
+      <div className="form-group">
+        <label style={{ textTransform: 'none' }}>เทมเพลตสำหรับกรอกข้อมูลกล้อง</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <a className="btn btn-dark" style={{ flex: 1, textDecoration: 'none' }} href={xlsxTemplateUrl(true)} download>
+            <Download /> พร้อมข้อมูลปัจจุบัน
+          </a>
+          <a className="btn btn-dark" style={{ flex: 1, textDecoration: 'none' }} href={xlsxTemplateUrl(false)} download>
+            <Download /> เทมเพลตเปล่า
+          </a>
+        </div>
+        <p className="hint" style={{ marginTop: 4, lineHeight: 1.6 }}>
+          มี dropdown โซน/แผนผัง/สถานะ และตรวจพิกัดให้ — การนำเข้าจะแทนที่กล้องทั้งหมด ถ้าแค่เพิ่ม/แก้บางตัวให้ใช้แบบ "พร้อมข้อมูลปัจจุบัน"
+        </p>
+      </div>
       <div className="form-group">
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, textTransform: 'none' }}>
           <input type="checkbox" style={{ width: 'auto' }} checked={cameras} onChange={(e) => toggleCameras(e.target.checked)} />
